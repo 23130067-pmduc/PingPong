@@ -1,6 +1,12 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
+const menuScreen = document.getElementById("menuScreen");
+const gameScreen = document.getElementById("gameScreen");
+const playButton = document.getElementById("playButton");
+
+let gameState = "menu";
+
 const paddle = {
     x: 390,
     y: 550,
@@ -8,12 +14,12 @@ const paddle = {
     height: 14,
     speed: 550
 };
-// Điểm số.
+
 let score = 0;
+
 const scoreElement = document.getElementById("score");
 scoreElement.textContent = score;
 
-// Cấu hình gạch
 const brickConfig = {
     rows: 4,
     columns: 6,
@@ -61,13 +67,11 @@ const ball = {
     launched: false
 };
 
-// Trạng thái phím điều hướng.
 const keys = {
     left: false,
     right: false
 };
 
-// Phần điều khiển đang giữ quyền.
 let controlMode = null;
 let lastMouseMoveTime = -Infinity;
 
@@ -88,12 +92,38 @@ function resetBall() {
     ball.y = paddle.y - ball.radius;
 }
 
+// Bắt đầu và đặt lại màn chơi.
+function startGame() {
+    gameState = "playing";
+
+    menuScreen.classList.add("hidden");
+    gameScreen.classList.remove("hidden");
+
+    score = 0;
+    scoreElement.textContent = score;
+
+    paddle.x = (canvas.width - paddle.width) / 2;
+
+    keys.left = false;
+    keys.right = false;
+    controlMode = null;
+
+    createBricks();
+    resetBall();
+}
+
+playButton.addEventListener("click", startGame);
+
+// Điều khiển bàn phím.
 window.addEventListener("keydown", (event) => {
+    if (gameState !== "playing") {
+        return;
+    }
+
     if (event.code === "Space") {
         event.preventDefault();
 
         if (!ball.launched && !event.repeat) {
-            // Đồng bộ vị trí trước khi phóng.
             ball.x = paddle.x + paddle.width / 2;
             ball.y = paddle.y - ball.radius;
             ball.launched = true;
@@ -113,7 +143,6 @@ window.addEventListener("keydown", (event) => {
 
     event.preventDefault();
 
-    // Chuột đang di chuyển thì chưa nhận bàn phím.
     const mouseIsActive =
         controlMode === "mouse" &&
         performance.now() - lastMouseMoveTime < MOUSE_IDLE_TIME;
@@ -142,13 +171,11 @@ window.addEventListener("keyup", (event) => {
         keys.right = false;
     }
 
-    // Thả cả hai phím mới nhường quyền cho chuột.
     if (controlMode === "keyboard" && !keys.left && !keys.right) {
         controlMode = null;
     }
 });
 
-// Tránh kẹt phím khi chuyển cửa sổ.
 window.addEventListener("blur", () => {
     keys.left = false;
     keys.right = false;
@@ -156,33 +183,41 @@ window.addEventListener("blur", () => {
     lastMouseMoveTime = -Infinity;
 });
 
+// Điều khiển bằng chuột.
 canvas.addEventListener("mousemove", (event) => {
-    if (controlMode === "keyboard") {
-        return;
+        if (gameState !== "playing") {
+            return;
+        }
+
+        if (controlMode === "keyboard") {
+            return;
+        }
+
+        controlMode = "mouse";
+        lastMouseMoveTime = performance.now();
+
+        const rect = canvas.getBoundingClientRect();
+        const style = getComputedStyle(canvas);
+
+        const borderLeft = parseFloat(style.borderLeftWidth) || 0;
+        const borderRight = parseFloat(style.borderRightWidth) || 0;
+        const displayWidth = rect.width - borderLeft - borderRight;
+
+        if (displayWidth <= 0) {
+            return;
+        }
+
+        const mouseX =
+            (event.clientX - rect.left - borderLeft) *
+            (canvas.width / displayWidth);
+
+        paddle.x = mouseX - paddle.width / 2;
+
+        clampPaddle();
     }
 
-    controlMode = "mouse";
-    lastMouseMoveTime = performance.now();
+);
 
-    const rect = canvas.getBoundingClientRect();
-    const style = getComputedStyle(canvas);
-
-    const borderLeft = parseFloat(style.borderLeftWidth) || 0;
-    const borderRight = parseFloat(style.borderRightWidth) || 0;
-    const displayWidth = rect.width - borderLeft - borderRight;
-
-    if (displayWidth <= 0) {
-        return;
-    }
-
-    const mouseX =
-        (event.clientX - rect.left - borderLeft) *
-        (canvas.width / displayWidth);
-
-    paddle.x = mouseX - paddle.width / 2;
-    clampPaddle();
-});
-// Vẽ những viên gạch chưa bị phá.
 function drawBricks() {
     for (const brick of bricks) {
         if (!brick.active) {
@@ -190,9 +225,13 @@ function drawBricks() {
         }
 
         ctx.fillStyle = brick.color;
-        ctx.fillRect(brick.x, brick.y, brick.width, brick.height);
+        ctx.fillRect(
+            brick.x,
+            brick.y,
+            brick.width,
+            brick.height
+        );
 
-        // Vệt sáng nhỏ ở mặt trên của viên gạch.
         ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
         ctx.fillRect(
             brick.x + 2,
@@ -203,14 +242,13 @@ function drawBricks() {
     }
 }
 
-// Kiểm tra va chạm giữa bóng tròn và gạch chữ nhật.
+// Va chạm giữa bóng và gạch.
 function checkBrickCollisions() {
     for (const brick of bricks) {
         if (!brick.active) {
             continue;
         }
 
-        // Điểm trên gạch gần tâm bóng nhất.
         const closestX = Math.max(
             brick.x,
             Math.min(ball.x, brick.x + brick.width)
@@ -236,21 +274,38 @@ function checkBrickCollisions() {
         let penetration;
 
         if (distance > 0) {
-            // Hướng từ mặt gạch ra phía bóng.
             normalX = dx / distance;
             normalY = dy / distance;
             penetration = ball.radius - distance;
         } else {
-            // chọn mặt gần nhất để đẩy bóng ra.
             const faces = [
-                { depth: ball.x - brick.x, nx: -1, ny: 0 },
-                { depth: brick.x + brick.width - ball.x, nx: 1, ny: 0 },
-                { depth: ball.y - brick.y, nx: 0, ny: -1 },
-                { depth: brick.y + brick.height - ball.y, nx: 0, ny: 1 }
+                {
+                    depth: ball.x - brick.x,
+                    nx: -1,
+                    ny: 0
+                },
+                {
+                    depth: brick.x + brick.width - ball.x,
+                    nx: 1,
+                    ny: 0
+                },
+                {
+                    depth: ball.y - brick.y,
+                    nx: 0,
+                    ny: -1
+                },
+                {
+                    depth: brick.y + brick.height - ball.y,
+                    nx: 0,
+                    ny: 1
+                }
             ];
 
-            const nearestFace = faces.reduce((nearest, face) =>
-                face.depth < nearest.depth ? face : nearest
+            const nearestFace = faces.reduce(
+                (nearest, face) =>
+                    face.depth < nearest.depth
+                        ? face
+                        : nearest
             );
 
             normalX = nearestFace.nx;
@@ -258,26 +313,30 @@ function checkBrickCollisions() {
             penetration = ball.radius + nearestFace.depth;
         }
 
-        // Đẩy bóng ra ngoài để không bị kẹt trong gạch.
         ball.x += normalX * (penetration + 0.01);
         ball.y += normalY * (penetration + 0.01);
 
         const velocityAlongNormal =
-            ball.vx * normalX + ball.vy * normalY;
+            ball.vx * normalX +
+            ball.vy * normalY;
 
-        // Chỉ đổi hướng nếu bóng đang bay vào gạch.
         if (velocityAlongNormal < 0) {
-            ball.vx -= 2 * velocityAlongNormal * normalX;
-            ball.vy -= 2 * velocityAlongNormal * normalY;
+            ball.vx -=
+                2 * velocityAlongNormal * normalX;
+
+            ball.vy -=
+                2 * velocityAlongNormal * normalY;
         }
 
         brick.active = false;
+
         score += 1;
         scoreElement.textContent = score;
 
         break;
     }
 }
+
 // Cập nhật bóng và xử lý va chạm.
 function updateBall(deltaTime) {
     if (!ball.launched) {
@@ -291,13 +350,14 @@ function updateBall(deltaTime) {
     ball.x += ball.vx * deltaTime;
     ball.y += ball.vy * deltaTime;
 
-    // Tường trái.
-    if (ball.x - ball.radius <= 0 && ball.vx < 0) {
+    if (
+        ball.x - ball.radius <= 0 &&
+        ball.vx < 0
+    ) {
         ball.x = ball.radius;
         ball.vx = -ball.vx;
     }
 
-    // Tường phải.
     if (
         ball.x + ball.radius >= canvas.width &&
         ball.vx > 0
@@ -306,15 +366,16 @@ function updateBall(deltaTime) {
         ball.vx = -ball.vx;
     }
 
-    // Trần.
-    if (ball.y - ball.radius <= 0 && ball.vy < 0) {
+    if (
+        ball.y - ball.radius <= 0 &&
+        ball.vy < 0
+    ) {
         ball.y = ball.radius;
         ball.vy = -ball.vy;
     }
-    // Va chạm với gạch.
+
     checkBrickCollisions();
 
-    // Bóng đi từ trên xuống và vượt qua mặt thanh đỡ.
     const crossedPaddleTop =
         previousY + ball.radius <= paddle.y &&
         ball.y + ball.radius >= paddle.y;
@@ -323,48 +384,66 @@ function updateBall(deltaTime) {
         ball.x + ball.radius >= paddle.x &&
         ball.x - ball.radius <= paddle.x + paddle.width;
 
-    if (ball.vy > 0 && crossedPaddleTop && overlapsPaddle) {
+    if (
+        ball.vy > 0 &&
+        crossedPaddleTop &&
+        overlapsPaddle
+    ) {
         ball.y = paddle.y - ball.radius;
 
-        const paddleCenter = paddle.x + paddle.width / 2;
+        const paddleCenter =
+            paddle.x + paddle.width / 2;
 
         const hitPosition = Math.max(
             -1,
             Math.min(
-                (ball.x - paddleCenter) / (paddle.width / 2),
+                (ball.x - paddleCenter) /
+                (paddle.width / 2),
                 1
             )
         );
 
         const maxAngle = Math.PI / 3;
-        const bounceAngle = hitPosition * maxAngle;
+        const bounceAngle =
+            hitPosition * maxAngle;
 
-        ball.vx = ball.speed * Math.sin(bounceAngle);
-        ball.vy = -ball.speed * Math.cos(bounceAngle);
+        ball.vx =
+            ball.speed * Math.sin(bounceAngle);
+
+        ball.vy =
+            -ball.speed * Math.cos(bounceAngle);
     }
 
-    // Bóng rơi hoàn toàn khỏi màn hình thì đặt lại.
-    if (ball.y - ball.radius > canvas.height) {
+    if (
+        ball.y - ball.radius >
+        canvas.height
+    ) {
         resetBall();
     }
 }
 
-// Cập nhật trạng thái game.
 function update(deltaTime) {
+    if (gameState !== "playing") {
+        return;
+    }
+
     const steps = Math.max(
         1,
         Math.ceil(deltaTime / (1 / 120))
     );
 
-    const stepTime = deltaTime / steps;
+    const stepTime =
+        deltaTime / steps;
 
     for (let i = 0; i < steps; i++) {
         if (keys.left) {
-            paddle.x -= paddle.speed * stepTime;
+            paddle.x -=
+                paddle.speed * stepTime;
         }
 
         if (keys.right) {
-            paddle.x += paddle.speed * stepTime;
+            paddle.x +=
+                paddle.speed * stepTime;
         }
 
         clampPaddle();
@@ -372,15 +451,18 @@ function update(deltaTime) {
     }
 }
 
-// Vẽ khung hình.
 function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
 
-    // gạch.
     drawBricks();
 
-    // thanh đỡ.
     ctx.fillStyle = "#38bdf8";
+
     ctx.fillRect(
         paddle.x,
         paddle.y,
@@ -388,8 +470,8 @@ function draw() {
         paddle.height
     );
 
-    // bóng.
     ctx.beginPath();
+
     ctx.arc(
         ball.x,
         ball.y,
@@ -397,17 +479,22 @@ function draw() {
         0,
         Math.PI * 2
     );
+
     ctx.fillStyle = "#ffffff";
     ctx.fill();
 }
 
 let lastTime = null;
 
-// Vòng lặp game.
+// Vòng lặp chính của game.
 function gameLoop(currentTime) {
-    const deltaTime = lastTime === null
-        ? 0
-        : Math.min((currentTime - lastTime) / 1000, 0.05);
+    const deltaTime =
+        lastTime === null
+            ? 0
+            : Math.min(
+                (currentTime - lastTime) / 1000,
+                0.05
+            );
 
     lastTime = currentTime;
 
