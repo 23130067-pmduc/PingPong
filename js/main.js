@@ -3,9 +3,23 @@ const ctx = canvas.getContext("2d");
 
 const menuScreen = document.getElementById("menuScreen");
 const gameScreen = document.getElementById("gameScreen");
+const resultScreen = document.getElementById("resultScreen");
+
 const playButton = document.getElementById("playButton");
+const restartButton = document.getElementById("restartButton");
+const nextButton = document.getElementById("nextButton");
+const homeButton = document.getElementById("homeButton");
+
+const resultTitle = document.getElementById("resultTitle");
+const resultText = document.getElementById("resultText");
+
+const scoreElement = document.getElementById("score");
+const levelElement = document.getElementById("level");
 
 let gameState = "menu";
+
+let currentLevel = 1;
+const maxImplementedLevel = 1;
 
 const paddle = {
     x: 390,
@@ -16,8 +30,6 @@ const paddle = {
 };
 
 let score = 0;
-
-const scoreElement = document.getElementById("score");
 scoreElement.textContent = score;
 
 const brickConfig = {
@@ -92,29 +104,119 @@ function resetBall() {
     ball.y = paddle.y - ball.radius;
 }
 
-// Bắt đầu và đặt lại màn chơi.
+function resetControls() {
+    keys.left = false;
+    keys.right = false;
+    controlMode = null;
+    lastMouseMoveTime = -Infinity;
+}
+
+/* Chuyển trạng thái màn hình */
+
 function startGame() {
     gameState = "playing";
 
     menuScreen.classList.add("hidden");
+    resultScreen.classList.add("hidden");
     gameScreen.classList.remove("hidden");
 
     score = 0;
     scoreElement.textContent = score;
+    levelElement.textContent = currentLevel;
 
     paddle.x = (canvas.width - paddle.width) / 2;
 
-    keys.left = false;
-    keys.right = false;
-    controlMode = null;
-
+    resetControls();
     createBricks();
     resetBall();
 }
 
-playButton.addEventListener("click", startGame);
+function showMenu() {
+    gameState = "menu";
 
-// Điều khiển bàn phím.
+    gameScreen.classList.add("hidden");
+    resultScreen.classList.add("hidden");
+    menuScreen.classList.remove("hidden");
+
+    resetControls();
+    resetBall();
+}
+
+function winGame() {
+    if (gameState !== "playing") {
+        return;
+    }
+
+    gameState = "won";
+
+    resetControls();
+
+    ball.launched = false;
+    ball.vx = 0;
+    ball.vy = 0;
+
+    gameScreen.classList.add("hidden");
+    resultScreen.classList.remove("hidden");
+
+    resultTitle.textContent = "THẮNG";
+    resultText.textContent = `Bạn đã hoàn thành màn ${currentLevel} với ${score} điểm.`;
+
+    restartButton.classList.add("hidden");
+
+    if (currentLevel < maxImplementedLevel) {
+        nextButton.classList.remove("hidden");
+    } else {
+        nextButton.classList.add("hidden");
+    }
+}
+
+function loseGame() {
+    if (gameState !== "playing") {
+        return;
+    }
+
+    gameState = "lost";
+
+    resetControls();
+
+    ball.launched = false;
+    ball.vx = 0;
+    ball.vy = 0;
+
+    gameScreen.classList.add("hidden");
+    resultScreen.classList.remove("hidden");
+
+    resultTitle.textContent = "THUA";
+    resultText.textContent = `Bạn đạt được ${score} điểm.`;
+
+    restartButton.classList.remove("hidden");
+    nextButton.classList.add("hidden");
+}
+
+playButton.addEventListener("click", () => {
+    currentLevel = 1;
+    startGame();
+});
+
+restartButton.addEventListener("click", () => {
+    startGame();
+});
+
+nextButton.addEventListener("click", () => {
+    if (currentLevel >= maxImplementedLevel) {
+        return;
+    }
+
+    currentLevel += 1;
+    startGame();
+});
+
+homeButton.addEventListener("click", () => {
+    showMenu();
+});
+
+/* Điều khiển */
+
 window.addEventListener("keydown", (event) => {
     if (gameState !== "playing") {
         return;
@@ -126,6 +228,7 @@ window.addEventListener("keydown", (event) => {
         if (!ball.launched && !event.repeat) {
             ball.x = paddle.x + paddle.width / 2;
             ball.y = paddle.y - ball.radius;
+
             ball.launched = true;
 
             const angle = Math.PI / 12;
@@ -177,46 +280,42 @@ window.addEventListener("keyup", (event) => {
 });
 
 window.addEventListener("blur", () => {
-    keys.left = false;
-    keys.right = false;
-    controlMode = null;
-    lastMouseMoveTime = -Infinity;
+    resetControls();
 });
 
-// Điều khiển bằng chuột.
 canvas.addEventListener("mousemove", (event) => {
-        if (gameState !== "playing") {
-            return;
-        }
-
-        if (controlMode === "keyboard") {
-            return;
-        }
-
-        controlMode = "mouse";
-        lastMouseMoveTime = performance.now();
-
-        const rect = canvas.getBoundingClientRect();
-        const style = getComputedStyle(canvas);
-
-        const borderLeft = parseFloat(style.borderLeftWidth) || 0;
-        const borderRight = parseFloat(style.borderRightWidth) || 0;
-        const displayWidth = rect.width - borderLeft - borderRight;
-
-        if (displayWidth <= 0) {
-            return;
-        }
-
-        const mouseX =
-            (event.clientX - rect.left - borderLeft) *
-            (canvas.width / displayWidth);
-
-        paddle.x = mouseX - paddle.width / 2;
-
-        clampPaddle();
+    if (gameState !== "playing") {
+        return;
     }
 
-);
+    if (controlMode === "keyboard") {
+        return;
+    }
+
+    controlMode = "mouse";
+    lastMouseMoveTime = performance.now();
+
+    const rect = canvas.getBoundingClientRect();
+    const style = getComputedStyle(canvas);
+
+    const borderLeft = parseFloat(style.borderLeftWidth) || 0;
+    const borderRight = parseFloat(style.borderRightWidth) || 0;
+
+    const displayWidth =
+        rect.width - borderLeft - borderRight;
+
+    if (displayWidth <= 0) {
+        return;
+    }
+
+    const mouseX =
+        (event.clientX - rect.left - borderLeft) *
+        (canvas.width / displayWidth);
+
+    paddle.x = mouseX - paddle.width / 2;
+
+    clampPaddle();
+});
 
 function drawBricks() {
     for (const brick of bricks) {
@@ -225,6 +324,7 @@ function drawBricks() {
         }
 
         ctx.fillStyle = brick.color;
+
         ctx.fillRect(
             brick.x,
             brick.y,
@@ -233,6 +333,7 @@ function drawBricks() {
         );
 
         ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
+
         ctx.fillRect(
             brick.x + 2,
             brick.y + 2,
@@ -242,7 +343,8 @@ function drawBricks() {
     }
 }
 
-// Va chạm giữa bóng và gạch.
+/* Va chạm bóng với gạch */
+
 function checkBrickCollisions() {
     for (const brick of bricks) {
         if (!brick.active) {
@@ -261,13 +363,16 @@ function checkBrickCollisions() {
 
         const dx = ball.x - closestX;
         const dy = ball.y - closestY;
-        const distanceSquared = dx * dx + dy * dy;
+
+        const distanceSquared =
+            dx * dx + dy * dy;
 
         if (distanceSquared > ball.radius * ball.radius) {
             continue;
         }
 
-        const distance = Math.sqrt(distanceSquared);
+        const distance =
+            Math.sqrt(distanceSquared);
 
         let normalX;
         let normalY;
@@ -310,11 +415,15 @@ function checkBrickCollisions() {
 
             normalX = nearestFace.nx;
             normalY = nearestFace.ny;
-            penetration = ball.radius + nearestFace.depth;
+            penetration =
+                ball.radius + nearestFace.depth;
         }
 
-        ball.x += normalX * (penetration + 0.01);
-        ball.y += normalY * (penetration + 0.01);
+        ball.x +=
+            normalX * (penetration + 0.01);
+
+        ball.y +=
+            normalY * (penetration + 0.01);
 
         const velocityAlongNormal =
             ball.vx * normalX +
@@ -333,22 +442,34 @@ function checkBrickCollisions() {
         score += 1;
         scoreElement.textContent = score;
 
+        if (score === bricks.length) {
+            winGame();
+        }
+
         break;
     }
 }
 
-// Cập nhật bóng và xử lý va chạm.
+/* Cập nhật bóng */
+
 function updateBall(deltaTime) {
     if (!ball.launched) {
-        ball.x = paddle.x + paddle.width / 2;
-        ball.y = paddle.y - ball.radius;
+        ball.x =
+            paddle.x + paddle.width / 2;
+
+        ball.y =
+            paddle.y - ball.radius;
+
         return;
     }
 
     const previousY = ball.y;
 
-    ball.x += ball.vx * deltaTime;
-    ball.y += ball.vy * deltaTime;
+    ball.x +=
+        ball.vx * deltaTime;
+
+    ball.y +=
+        ball.vy * deltaTime;
 
     if (
         ball.x - ball.radius <= 0 &&
@@ -362,7 +483,9 @@ function updateBall(deltaTime) {
         ball.x + ball.radius >= canvas.width &&
         ball.vx > 0
     ) {
-        ball.x = canvas.width - ball.radius;
+        ball.x =
+            canvas.width - ball.radius;
+
         ball.vx = -ball.vx;
     }
 
@@ -376,20 +499,26 @@ function updateBall(deltaTime) {
 
     checkBrickCollisions();
 
+    if (gameState !== "playing") {
+        return;
+    }
+
     const crossedPaddleTop =
         previousY + ball.radius <= paddle.y &&
         ball.y + ball.radius >= paddle.y;
 
     const overlapsPaddle =
         ball.x + ball.radius >= paddle.x &&
-        ball.x - ball.radius <= paddle.x + paddle.width;
+        ball.x - ball.radius <=
+        paddle.x + paddle.width;
 
     if (
         ball.vy > 0 &&
         crossedPaddleTop &&
         overlapsPaddle
     ) {
-        ball.y = paddle.y - ball.radius;
+        ball.y =
+            paddle.y - ball.radius;
 
         const paddleCenter =
             paddle.x + paddle.width / 2;
@@ -403,22 +532,26 @@ function updateBall(deltaTime) {
             )
         );
 
-        const maxAngle = Math.PI / 3;
+        const maxAngle =
+            Math.PI / 3;
+
         const bounceAngle =
             hitPosition * maxAngle;
 
         ball.vx =
-            ball.speed * Math.sin(bounceAngle);
+            ball.speed *
+            Math.sin(bounceAngle);
 
         ball.vy =
-            -ball.speed * Math.cos(bounceAngle);
+            -ball.speed *
+            Math.cos(bounceAngle);
     }
 
     if (
         ball.y - ball.radius >
         canvas.height
     ) {
-        resetBall();
+        loseGame();
     }
 }
 
@@ -448,6 +581,10 @@ function update(deltaTime) {
 
         clampPaddle();
         updateBall(stepTime);
+
+        if (gameState !== "playing") {
+            break;
+        }
     }
 }
 
@@ -486,7 +623,8 @@ function draw() {
 
 let lastTime = null;
 
-// Vòng lặp chính của game.
+/* Vòng lặp chính */
+
 function gameLoop(currentTime) {
     const deltaTime =
         lastTime === null
