@@ -241,6 +241,20 @@ p {
     transform: scale(0.98);
 }
 
+#exitGameButton {
+    padding: 8px 14px;
+    border: none;
+    border-radius: 6px;
+    background: #ef4444;
+    color: white;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+#exitGameButton:hover {
+    background: #dc2626;
+}
+
 .hidden {
     display: none;
 }

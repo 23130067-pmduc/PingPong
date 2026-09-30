@@ -32,12 +32,18 @@ const levelElement = document.getElementById("level");
 let gameState = "menu";
 
 let currentLevel = 1;
-const maxImplementedLevel = 1;
+const maxImplementedLevel = 2;
+
+const exitGameButton = document.getElementById("exitGameButton");
+
+exitGameButton.addEventListener("click", () => {
+    showMenu();
+});
 
 const paddle = {
     x: 390,
     y: 550,
-    width: 120,
+    width: 100,
     height: 14,
     speed: 550
 };
@@ -48,21 +54,19 @@ scoreElement.textContent = score;
 const brickConfig = {
     rows: 4,
     columns: 6,
-    width: 120,
+    width: 100,
     height: 24,
-    gap: 12,
+    gap: 16,
     top: 70,
     colors: ["#f87171", "#fb923c", "#facc15", "#4ade80"]
 };
 
 const bricks = [];
 
-function createBricks() {
+function createLevel1() {
     bricks.length = 0;
 
-    const totalWidth =
-        brickConfig.columns * brickConfig.width +
-        (brickConfig.columns - 1) * brickConfig.gap;
+    const totalWidth = brickConfig.columns * brickConfig.width + (brickConfig.columns - 1) * brickConfig.gap;
 
     const startX = (canvas.width - totalWidth) / 2;
 
@@ -74,8 +78,70 @@ function createBricks() {
                 width: brickConfig.width,
                 height: brickConfig.height,
                 color: brickConfig.colors[row],
-                active: true
+                active: true,
+                moving: false
             });
+        }
+    }
+}
+
+function createLevel2() {
+    bricks.length = 0;
+
+    const totalWidth =
+        brickConfig.columns * brickConfig.width +
+        (brickConfig.columns - 1) * brickConfig.gap;
+
+    const startX = (canvas.width - totalWidth) / 2;
+
+    for (let row = 0; row < brickConfig.rows; row++) {
+        for (let column = 0; column < brickConfig.columns; column++) {
+            const x =
+                startX +
+                column * (brickConfig.width + brickConfig.gap);
+
+            bricks.push({
+                x: x,
+                y: brickConfig.top + row * (brickConfig.height + brickConfig.gap),
+                width: brickConfig.width,
+                height: brickConfig.height,
+                color: brickConfig.colors[row],
+                active: true,
+
+                moving: true,
+                moveSpeed: 80,
+                moveDirection: row % 2 === 0 ? 1 : -1,
+                minX: x - 40,
+                maxX: x + 40
+            });
+        }
+    }
+}
+
+function createBricks() {
+    if (currentLevel === 1) {
+        createLevel1();
+    } else if (currentLevel === 2) {
+        createLevel2();
+    }
+}
+
+function updateMovingBricks(deltaTime) {
+    if (currentLevel !== 2) {
+        return;
+    }
+
+    for (const brick of bricks) {
+        if (!brick.active || !brick.moving) {
+            continue;
+        }
+
+        brick.x += brick.moveSpeed * brick.moveDirection * deltaTime;
+
+        if (brick.x <= brick.minX) {brick.x = brick.minX;brick.moveDirection = 1;
+        } else if (brick.x >= brick.maxX) {
+            brick.x = brick.maxX;
+            brick.moveDirection = -1;
         }
     }
 }
@@ -103,10 +169,7 @@ let lastMouseMoveTime = -Infinity;
 const MOUSE_IDLE_TIME = 200;
 
 function clampPaddle() {
-    paddle.x = Math.max(
-        0,
-        Math.min(paddle.x, canvas.width - paddle.width)
-    );
+    paddle.x = Math.max(0, Math.min(paddle.x, canvas.width - paddle.width));
 }
 
 function resetBall() {
@@ -202,6 +265,9 @@ function showMenu() {
 }
 levelButton.addEventListener("click", () => {
     showLevelSelect();
+});
+levelBackButton.addEventListener("click", () => {
+    showMenu();
 });
 guideButton.addEventListener("click", () => {
     showGuide();
@@ -314,10 +380,7 @@ window.addEventListener("keydown", (event) => {
 
     event.preventDefault();
 
-    const mouseIsActive =
-        controlMode === "mouse" &&
-        performance.now() - lastMouseMoveTime < MOUSE_IDLE_TIME;
-
+    const mouseIsActive = controlMode === "mouse" && performance.now() - lastMouseMoveTime < MOUSE_IDLE_TIME;
     if (mouseIsActive) {
         return;
     }
@@ -369,19 +432,14 @@ canvas.addEventListener("mousemove", (event) => {
     const borderLeft = parseFloat(style.borderLeftWidth) || 0;
     const borderRight = parseFloat(style.borderRightWidth) || 0;
 
-    const displayWidth =
-        rect.width - borderLeft - borderRight;
+    const displayWidth = rect.width - borderLeft - borderRight;
 
     if (displayWidth <= 0) {
         return;
     }
 
-    const mouseX =
-        (event.clientX - rect.left - borderLeft) *
-        (canvas.width / displayWidth);
-
+    const mouseX = (event.clientX - rect.left - borderLeft) * (canvas.width / displayWidth);
     paddle.x = mouseX - paddle.width / 2;
-
     clampPaddle();
 });
 
@@ -418,30 +476,17 @@ function checkBrickCollisions() {
         if (!brick.active) {
             continue;
         }
-
-        const closestX = Math.max(
-            brick.x,
-            Math.min(ball.x, brick.x + brick.width)
-        );
-
-        const closestY = Math.max(
-            brick.y,
-            Math.min(ball.y, brick.y + brick.height)
-        );
-
+        const closestX = Math.max(brick.x, Math.min(ball.x, brick.x + brick.width));
+        const closestY = Math.max(brick.y, Math.min(ball.y, brick.y + brick.height));
         const dx = ball.x - closestX;
         const dy = ball.y - closestY;
-
-        const distanceSquared =
-            dx * dx + dy * dy;
+        const distanceSquared = dx * dx + dy * dy;
 
         if (distanceSquared > ball.radius * ball.radius) {
             continue;
         }
 
-        const distance =
-            Math.sqrt(distanceSquared);
-
+        const distance = Math.sqrt(distanceSquared);
         let normalX;
         let normalY;
         let penetration;
@@ -451,58 +496,26 @@ function checkBrickCollisions() {
             normalY = dy / distance;
             penetration = ball.radius - distance;
         } else {
-            const faces = [
-                {
-                    depth: ball.x - brick.x,
-                    nx: -1,
-                    ny: 0
-                },
-                {
-                    depth: brick.x + brick.width - ball.x,
-                    nx: 1,
-                    ny: 0
-                },
-                {
-                    depth: ball.y - brick.y,
-                    nx: 0,
-                    ny: -1
-                },
-                {
-                    depth: brick.y + brick.height - ball.y,
-                    nx: 0,
-                    ny: 1
-                }
-            ];
+            const faces = [{depth: ball.x - brick.x, nx: -1, ny: 0},
+                {depth: brick.x + brick.width - ball.x, nx: 1, ny: 0},
+                {depth: ball.y - brick.y, nx: 0, ny: -1},
+                {depth: brick.y + brick.height - ball.y, nx: 0, ny: 1}];
 
-            const nearestFace = faces.reduce(
-                (nearest, face) =>
-                    face.depth < nearest.depth
-                        ? face
-                        : nearest
-            );
+            const nearestFace = faces.reduce((nearest, face) =>
+                face.depth < nearest.depth ? face : nearest);
 
             normalX = nearestFace.nx;
             normalY = nearestFace.ny;
-            penetration =
-                ball.radius + nearestFace.depth;
+            penetration = ball.radius + nearestFace.depth;
         }
 
-        ball.x +=
-            normalX * (penetration + 0.01);
+        ball.x += normalX * (penetration + 0.01);
+        ball.y += normalY * (penetration + 0.01);
 
-        ball.y +=
-            normalY * (penetration + 0.01);
-
-        const velocityAlongNormal =
-            ball.vx * normalX +
-            ball.vy * normalY;
-
+        const velocityAlongNormal = ball.vx * normalX + ball.vy * normalY;
         if (velocityAlongNormal < 0) {
-            ball.vx -=
-                2 * velocityAlongNormal * normalX;
-
-            ball.vy -=
-                2 * velocityAlongNormal * normalY;
+            ball.vx -= 2 * velocityAlongNormal * normalX;
+            ball.vy -= 2 * velocityAlongNormal * normalY;
         }
 
         brick.active = false;
@@ -522,103 +535,56 @@ function checkBrickCollisions() {
 
 function updateBall(deltaTime) {
     if (!ball.launched) {
-        ball.x =
-            paddle.x + paddle.width / 2;
-
-        ball.y =
-            paddle.y - ball.radius;
-
+        ball.x = paddle.x + paddle.width / 2;
+        ball.y = paddle.y - ball.radius;
         return;
     }
 
     const previousY = ball.y;
+    ball.x += ball.vx * deltaTime;
+    ball.y += ball.vy * deltaTime;
 
-    ball.x +=
-        ball.vx * deltaTime;
+    if (ball.x - ball.radius <= 0 && ball.vx < 0) {
 
-    ball.y +=
-        ball.vy * deltaTime;
-
-    if (
-        ball.x - ball.radius <= 0 &&
-        ball.vx < 0
-    ) {
         ball.x = ball.radius;
         ball.vx = -ball.vx;
     }
 
-    if (
-        ball.x + ball.radius >= canvas.width &&
-        ball.vx > 0
-    ) {
-        ball.x =
-            canvas.width - ball.radius;
+    if (ball.x + ball.radius >= canvas.width && ball.vx > 0) {
 
+        ball.x = canvas.width - ball.radius;
         ball.vx = -ball.vx;
     }
 
-    if (
-        ball.y - ball.radius <= 0 &&
-        ball.vy < 0
-    ) {
+    if (ball.y - ball.radius <= 0 && ball.vy < 0) {
+
         ball.y = ball.radius;
         ball.vy = -ball.vy;
     }
 
     checkBrickCollisions();
-
     if (gameState !== "playing") {
         return;
     }
 
-    const crossedPaddleTop =
-        previousY + ball.radius <= paddle.y &&
-        ball.y + ball.radius >= paddle.y;
+    const crossedPaddleTop = previousY + ball.radius <= paddle.y && ball.y + ball.radius >= paddle.y;
+    const overlapsPaddle = ball.x + ball.radius >= paddle.x && ball.x - ball.radius <= paddle.x + paddle.width;
 
-    const overlapsPaddle =
-        ball.x + ball.radius >= paddle.x &&
-        ball.x - ball.radius <=
-        paddle.x + paddle.width;
+    if (ball.vy > 0 && crossedPaddleTop && overlapsPaddle) {
 
-    if (
-        ball.vy > 0 &&
-        crossedPaddleTop &&
-        overlapsPaddle
-    ) {
-        ball.y =
-            paddle.y - ball.radius;
+        ball.y = paddle.y - ball.radius;
+        const paddleCenter = paddle.x + paddle.width / 2;
+        const hitPosition = Math.max(-1,
+            Math.min((ball.x - paddleCenter) / (paddle.width / 2), 1));
 
-        const paddleCenter =
-            paddle.x + paddle.width / 2;
+        const maxAngle = Math.PI / 3;
+        const bounceAngle = hitPosition * maxAngle;
 
-        const hitPosition = Math.max(
-            -1,
-            Math.min(
-                (ball.x - paddleCenter) /
-                (paddle.width / 2),
-                1
-            )
-        );
-
-        const maxAngle =
-            Math.PI / 3;
-
-        const bounceAngle =
-            hitPosition * maxAngle;
-
-        ball.vx =
-            ball.speed *
-            Math.sin(bounceAngle);
-
-        ball.vy =
-            -ball.speed *
-            Math.cos(bounceAngle);
+        ball.vx = ball.speed * Math.sin(bounceAngle);
+        ball.vy = -ball.speed * Math.cos(bounceAngle);
     }
 
-    if (
-        ball.y - ball.radius >
-        canvas.height
-    ) {
+    if (ball.y - ball.radius > canvas.height) {
         loseGame();
     }
 }
@@ -628,26 +594,21 @@ function update(deltaTime) {
         return;
     }
 
-    const steps = Math.max(
-        1,
-        Math.ceil(deltaTime / (1 / 120))
-    );
-
-    const stepTime =
-        deltaTime / steps;
+    const steps = Math.max(1, Math.ceil(deltaTime / (1 / 120)));
+    const stepTime = deltaTime / steps;
 
     for (let i = 0; i < steps; i++) {
         if (keys.left) {
-            paddle.x -=
-                paddle.speed * stepTime;
+            paddle.x -= paddle.speed * stepTime;
         }
 
         if (keys.right) {
-            paddle.x +=
-                paddle.speed * stepTime;
+            paddle.x += paddle.speed * stepTime;
         }
 
         clampPaddle();
+
+        updateMovingBricks(stepTime);
         updateBall(stepTime);
 
         if (gameState !== "playing") {
@@ -665,9 +626,7 @@ function draw() {
     );
 
     drawBricks();
-
     ctx.fillStyle = "#38bdf8";
-
     ctx.fillRect(
         paddle.x,
         paddle.y,
@@ -676,7 +635,6 @@ function draw() {
     );
 
     ctx.beginPath();
-
     ctx.arc(
         ball.x,
         ball.y,
@@ -694,19 +652,11 @@ let lastTime = null;
 /* Vòng lặp chính */
 
 function gameLoop(currentTime) {
-    const deltaTime =
-        lastTime === null
-            ? 0
-            : Math.min(
-                (currentTime - lastTime) / 1000,
-                0.05
-            );
+    const deltaTime = lastTime === null ? 0 : Math.min((currentTime - lastTime) / 1000, 0.05);
 
     lastTime = currentTime;
-
     update(deltaTime);
     draw();
-
     requestAnimationFrame(gameLoop);
 }
 
