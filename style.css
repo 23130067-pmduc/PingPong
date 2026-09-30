@@ -83,6 +83,12 @@ h1 {
     margin-bottom: 14px;
     font-size: 18px;
 }
+.hud #level{
+    padding: 5px;
+}
+.hud #score{
+    padding: 5px;
+}
 
 .hud strong {
     color: #38bdf8;

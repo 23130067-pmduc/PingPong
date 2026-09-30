@@ -32,7 +32,7 @@ const levelElement = document.getElementById("level");
 let gameState = "menu";
 
 let currentLevel = 1;
-const maxImplementedLevel = 3;
+const maxImplementedLevel = 4;
 
 const exitGameButton = document.getElementById("exitGameButton");
 
@@ -161,6 +161,92 @@ function createLevel3() {
     }
 }
 
+function createLevel4() {
+    bricks.length = 0;
+
+    const levelConfig = {
+        rows: 4,
+        columns: 6,
+        width: 85,
+        height: 22,
+        gap: 18,
+        top: 65,
+        colors: brickConfig.colors
+    };
+
+    const totalWidth = levelConfig.columns * levelConfig.width + (levelConfig.columns - 1) * levelConfig.gap;
+    const startX = (canvas.width - totalWidth) / 2;
+    const moveRange = 25;
+
+    for (let row = 0; row < levelConfig.rows; row++) {
+        for (let column = 0; column < levelConfig.columns; column++) {
+            const x = startX + column * (levelConfig.width + levelConfig.gap);
+
+            const unbreakable =
+                (row === 1 && (column === 0 || column === 4));
+            const moving = !unbreakable && (row === 0 || row === 3);
+
+            bricks.push({
+                x: x,
+                y: levelConfig.top + row * (levelConfig.height + levelConfig.gap),
+                width: levelConfig.width,
+                height: levelConfig.height,
+                color: unbreakable ? "#475569" : levelConfig.colors[row],
+                active: true,
+                moving: moving,
+                moveSpeed: 70,
+                moveDirection: row === 0 ? 1 : -1,
+                minX: x - moveRange,
+                maxX: x + moveRange,
+                type: unbreakable ? "unbreakable" : "normal",
+                breakable: !unbreakable
+            });
+        }
+    }
+
+    const wallWidth = 18;
+    const wallHeight = 110;
+    const wallY = 230;
+    const wallOffset = 140;
+
+    const leftWallX = canvas.width / 2 - wallOffset - wallWidth / 2;
+    const rightWallX = canvas.width / 2 + wallOffset - wallWidth / 2;
+
+    bricks.push({
+        x: leftWallX,
+        y: wallY,
+        width: wallWidth,
+        height: wallHeight,
+        color: "#a855f7",
+        active: true,
+        moving: false,
+        type: "disappearing",
+        breakable: false,
+        visible: true,
+        timer: 0,
+        visibleTime: 2,
+        hiddenTime: 2,
+        opacity: 1
+    });
+
+    bricks.push({
+        x: rightWallX,
+        y: wallY,
+        width: wallWidth,
+        height: wallHeight,
+        color: "#a855f7",
+        active: true,
+        moving: false,
+        type: "disappearing",
+        breakable: false,
+        visible: false,
+        timer: 2,
+        visibleTime: 2,
+        hiddenTime: 2,
+        opacity: 0
+    });
+}
+
 function createBricks() {
     if (currentLevel === 1) {
         createLevel1();
@@ -168,6 +254,8 @@ function createBricks() {
         createLevel2();
     } else if (currentLevel === 3) {
         createLevel3();
+    } else if (currentLevel === 4) {
+        createLevel4();
     }
 }
 
@@ -188,6 +276,31 @@ function updateMovingBricks(deltaTime) {
         } else if (brick.x >= brick.maxX) {
             brick.x = brick.maxX;
             brick.moveDirection = -1;
+        }
+    }
+}
+
+function updateDisappearingWalls(deltaTime) {
+    for (const brick of bricks) {
+        if (brick.type !== "disappearing") {
+            continue;
+        }
+
+        const cycleTime = brick.visibleTime + brick.hiddenTime;
+        brick.timer = (brick.timer + deltaTime) % cycleTime;
+        brick.visible = brick.timer < brick.visibleTime;
+
+        if (!brick.visible) {
+            brick.opacity = 0;
+            continue;
+        }
+
+        const remainingTime = brick.visibleTime - brick.timer;
+
+        if (remainingTime <= 0.5) {
+            brick.opacity = 0.35 + (remainingTime / 0.5) * 0.65;
+        } else {
+            brick.opacity = 1;
         }
     }
 }
@@ -495,6 +608,41 @@ function drawBricks() {
             continue;
         }
 
+        if (
+            brick.type === "disappearing" &&
+            !brick.visible
+        ) {
+            continue;
+        }
+
+        if (brick.type === "disappearing") {
+            ctx.save();
+
+            ctx.globalAlpha = brick.opacity;
+
+            ctx.fillStyle = brick.color;
+            ctx.fillRect(
+                brick.x,
+                brick.y,
+                brick.width,
+                brick.height
+            );
+
+            ctx.strokeStyle = "#e9d5ff";
+            ctx.lineWidth = 2;
+
+            ctx.strokeRect(
+                brick.x,
+                brick.y,
+                brick.width,
+                brick.height
+            );
+
+            ctx.restore();
+
+            continue;
+        }
+
         ctx.fillStyle = brick.color;
 
         ctx.fillRect(
@@ -516,7 +664,6 @@ function drawBricks() {
             );
 
             ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
-
             ctx.fillRect(
                 brick.x + 4,
                 brick.y + 4,
@@ -525,7 +672,6 @@ function drawBricks() {
             );
         } else {
             ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
-
             ctx.fillRect(
                 brick.x + 2,
                 brick.y + 2,
@@ -555,13 +701,25 @@ function checkBrickCollisions() {
         if (!brick.active) {
             continue;
         }
+
+        if (
+            brick.type === "disappearing" &&
+            !brick.visible
+        ) {
+            continue;
+        }
+
         const closestX = Math.max(brick.x, Math.min(ball.x, brick.x + brick.width));
         const closestY = Math.max(brick.y, Math.min(ball.y, brick.y + brick.height));
+
         const dx = ball.x - closestX;
         const dy = ball.y - closestY;
         const distanceSquared = dx * dx + dy * dy;
 
-        if (distanceSquared > ball.radius * ball.radius) {
+        if (
+            distanceSquared >
+            ball.radius * ball.radius
+        ) {
             continue;
         }
 
@@ -575,23 +733,42 @@ function checkBrickCollisions() {
             normalY = dy / distance;
             penetration = ball.radius - distance;
         } else {
-            const faces = [{depth: ball.x - brick.x, nx: -1, ny: 0},
-                {depth: brick.x + brick.width - ball.x, nx: 1, ny: 0},
-                {depth: ball.y - brick.y, nx: 0, ny: -1},
-                {depth: brick.y + brick.height - ball.y, nx: 0, ny: 1}];
+            const faces = [
+                {
+                    depth: ball.x - brick.x,
+                    nx: -1,
+                    ny: 0
+                },
+                {
+                    depth: brick.x + brick.width - ball.x,
+                    nx: 1,
+                    ny: 0
+                },
+                {
+                    depth: ball.y - brick.y,
+                    nx: 0,
+                    ny: -1
+                },
+                {
+                    depth: brick.y + brick.height - ball.y,
+                    nx: 0,
+                    ny: 1
+                }
+            ];
 
             const nearestFace = faces.reduce((nearest, face) =>
                 face.depth < nearest.depth ? face : nearest);
 
             normalX = nearestFace.nx;
             normalY = nearestFace.ny;
+
             penetration = ball.radius + nearestFace.depth;
         }
 
         ball.x += normalX * (penetration + 0.01);
         ball.y += normalY * (penetration + 0.01);
-
         const velocityAlongNormal = ball.vx * normalX + ball.vy * normalY;
+
         if (velocityAlongNormal < 0) {
             ball.vx -= 2 * velocityAlongNormal * normalX;
             ball.vy -= 2 * velocityAlongNormal * normalY;
@@ -611,7 +788,6 @@ function checkBrickCollisions() {
         break;
     }
 }
-
 /* Cập nhật bóng */
 
 function updateBall(deltaTime) {
@@ -674,7 +850,6 @@ function update(deltaTime) {
     if (gameState !== "playing") {
         return;
     }
-
     const steps = Math.max(1, Math.ceil(deltaTime / (1 / 120)));
     const stepTime = deltaTime / steps;
 
@@ -688,8 +863,8 @@ function update(deltaTime) {
         }
 
         clampPaddle();
-
         updateMovingBricks(stepTime);
+        updateDisappearingWalls(stepTime);
         updateBall(stepTime);
 
         if (gameState !== "playing") {
