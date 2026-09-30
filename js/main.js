@@ -32,7 +32,7 @@ const levelElement = document.getElementById("level");
 let gameState = "menu";
 
 let currentLevel = 1;
-const maxImplementedLevel = 2;
+const maxImplementedLevel = 3;
 
 const exitGameButton = document.getElementById("exitGameButton");
 
@@ -118,27 +118,73 @@ function createLevel2() {
     }
 }
 
+function createLevel3() {
+    bricks.length = 0;
+
+    const levelConfig = {
+        ...brickConfig,
+        width: 90,
+        height: 22,
+        gap: 18
+    };
+
+    const totalWidth = levelConfig.columns * levelConfig.width + (levelConfig.columns - 1) * levelConfig.gap;
+    const startX = (canvas.width - totalWidth) / 2;
+    const moveRange = 30;
+
+    for (let row = 0; row < levelConfig.rows; row++) {
+        for (let column = 0; column < levelConfig.columns; column++) {
+            const x = startX + column * (levelConfig.width + levelConfig.gap);
+
+            const unbreakable =
+                (row === 1 && (column === 0 || column === 4)) ||
+                (row === 2 && (column === 2 || column === 5));
+
+            const moving = row === 0 || row === 3;
+
+            bricks.push({
+                x: x,
+                y: levelConfig.top + row * (levelConfig.height + levelConfig.gap),
+                width: levelConfig.width,
+                height: levelConfig.height,
+                color: unbreakable ? "#475569" : levelConfig.colors[row],
+                active: true,
+                moving: moving && !unbreakable,
+                moveSpeed: 80,
+                moveDirection: row === 0 ? 1 : -1,
+                minX: x - moveRange,
+                maxX: x + moveRange,
+                type: unbreakable ? "unbreakable" : "normal",
+                breakable: !unbreakable
+            });
+        }
+    }
+}
+
 function createBricks() {
     if (currentLevel === 1) {
         createLevel1();
     } else if (currentLevel === 2) {
         createLevel2();
+    } else if (currentLevel === 3) {
+        createLevel3();
     }
 }
 
 function updateMovingBricks(deltaTime) {
-    if (currentLevel !== 2) {
-        return;
-    }
-
     for (const brick of bricks) {
         if (!brick.active || !brick.moving) {
             continue;
         }
 
-        brick.x += brick.moveSpeed * brick.moveDirection * deltaTime;
+        brick.x +=
+            brick.moveSpeed *
+            brick.moveDirection *
+            deltaTime;
 
-        if (brick.x <= brick.minX) {brick.x = brick.minX;brick.moveDirection = 1;
+        if (brick.x <= brick.minX) {
+            brick.x = brick.minX;
+            brick.moveDirection = 1;
         } else if (brick.x >= brick.maxX) {
             brick.x = brick.maxX;
             brick.moveDirection = -1;
@@ -458,18 +504,51 @@ function drawBricks() {
             brick.height
         );
 
-        ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
+        if (brick.type === "unbreakable") {
+            ctx.strokeStyle = "#cbd5e1";
+            ctx.lineWidth = 2;
 
-        ctx.fillRect(
-            brick.x + 2,
-            brick.y + 2,
-            brick.width - 4,
-            4
-        );
+            ctx.strokeRect(
+                brick.x,
+                brick.y,
+                brick.width,
+                brick.height
+            );
+
+            ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
+
+            ctx.fillRect(
+                brick.x + 4,
+                brick.y + 4,
+                brick.width - 8,
+                3
+            );
+        } else {
+            ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
+
+            ctx.fillRect(
+                brick.x + 2,
+                brick.y + 2,
+                brick.width - 4,
+                4
+            );
+        }
     }
 }
 
 /* Va chạm bóng với gạch */
+
+function checkWinCondition() {
+    const hasBreakableBrick = bricks.some(
+        (brick) =>
+            brick.active &&
+            brick.breakable !== false
+    );
+
+    if (!hasBreakableBrick) {
+        winGame();
+    }
+}
 
 function checkBrickCollisions() {
     for (const brick of bricks) {
@@ -518,14 +597,16 @@ function checkBrickCollisions() {
             ball.vy -= 2 * velocityAlongNormal * normalY;
         }
 
+        if (brick.breakable === false) {
+            break;
+        }
+
         brick.active = false;
 
         score += 1;
         scoreElement.textContent = score;
 
-        if (score === bricks.length) {
-            winGame();
-        }
+        checkWinCondition();
 
         break;
     }
