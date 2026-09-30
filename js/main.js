@@ -5,6 +5,18 @@ const menuScreen = document.getElementById("menuScreen");
 const gameScreen = document.getElementById("gameScreen");
 const resultScreen = document.getElementById("resultScreen");
 
+const levelSelectScreen = document.getElementById("levelSelectScreen");
+
+const levelButton = document.getElementById("levelButton");
+const levelBackButton = document.getElementById("levelBackButton");
+
+const levelButtons = document.querySelectorAll(".level-button");
+
+const guideScreen = document.getElementById("guideScreen");
+
+const guideButton = document.getElementById("guideButton");
+const guideBackButton = document.getElementById("guideBackButton");
+
 const playButton = document.getElementById("playButton");
 const restartButton = document.getElementById("restartButton");
 const nextButton = document.getElementById("nextButton");
@@ -15,6 +27,7 @@ const resultText = document.getElementById("resultText");
 
 const scoreElement = document.getElementById("score");
 const levelElement = document.getElementById("level");
+
 
 let gameState = "menu";
 
@@ -118,6 +131,9 @@ function startGame() {
 
     menuScreen.classList.add("hidden");
     resultScreen.classList.add("hidden");
+    guideScreen.classList.add("hidden");
+    levelSelectScreen.classList.add("hidden");
+
     gameScreen.classList.remove("hidden");
 
     score = 0;
@@ -131,17 +147,69 @@ function startGame() {
     resetBall();
 }
 
+function showLevelSelect() {
+    gameState = "levelSelect";
+
+    menuScreen.classList.add("hidden");
+    gameScreen.classList.add("hidden");
+    resultScreen.classList.add("hidden");
+    guideScreen.classList.add("hidden");
+
+    levelSelectScreen.classList.remove("hidden");
+
+    levelButtons.forEach((button) => {
+        const level = Number(button.dataset.level);
+
+        button.disabled = level > maxImplementedLevel;
+    });
+}
+
+function showGuide() {
+    gameState = "guide";
+
+    menuScreen.classList.add("hidden");
+    gameScreen.classList.add("hidden");
+    resultScreen.classList.add("hidden");
+
+    guideScreen.classList.remove("hidden");
+}
+
+levelButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+        const selectedLevel = Number(button.dataset.level);
+
+        if (selectedLevel > maxImplementedLevel) {
+            return;
+        }
+
+        currentLevel = selectedLevel;
+        startGame();
+    });
+});
+
 function showMenu() {
     gameState = "menu";
 
     gameScreen.classList.add("hidden");
     resultScreen.classList.add("hidden");
+    guideScreen.classList.add("hidden");
+    levelSelectScreen.classList.add("hidden");
+
     menuScreen.classList.remove("hidden");
 
     resetControls();
     resetBall();
 }
+levelButton.addEventListener("click", () => {
+    showLevelSelect();
+});
+guideButton.addEventListener("click", () => {
+    showGuide();
+});
 
+guideBackButton.addEventListener("click", () => {
+    showMenu();
+});
 function winGame() {
     if (gameState !== "playing") {
         return;

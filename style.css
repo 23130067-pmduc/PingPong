@@ -145,6 +145,102 @@ p {
 .result-buttons button:active {
     transform: scale(0.98);
 }
+
+.level-select {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.level-list {
+    width: min(100%, 500px);
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+    margin-bottom: 28px;
+}
+
+.level-button,
+#levelBackButton {
+    padding: 14px 20px;
+    border: none;
+    border-radius: 8px;
+    background: #38bdf8;
+    color: #020617;
+    font-family: inherit;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    transition:
+            transform 0.15s ease,
+            background 0.15s ease;
+}
+
+.level-button:hover:not(:disabled),
+#levelBackButton:hover {
+    background: #7dd3fc;
+    transform: scale(1.05);
+}
+
+.level-button:active:not(:disabled),
+#levelBackButton:active {
+    transform: scale(0.98);
+}
+
+.level-button:disabled {
+    background: #334155;
+    color: #94a3b8;
+    cursor: not-allowed;
+}
+
+#levelBackButton {
+    width: 260px;
+}
+
+.guide {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.guide-content {
+    width: min(100%, 700px);
+    margin-bottom: 28px;
+    text-align: left;
+}
+
+.guide-content p {
+    margin: 0 0 18px;
+    color: #cbd5e1;
+    font-size: 18px;
+    line-height: 1.7;
+}
+
+#guideBackButton {
+    width: 260px;
+    padding: 14px 20px;
+    border: none;
+    border-radius: 8px;
+    background: #38bdf8;
+    color: #020617;
+    font-family: inherit;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    transition:
+            transform 0.15s ease,
+            background 0.15s ease;
+}
+
+#guideBackButton:hover {
+    background: #7dd3fc;
+    transform: scale(1.05);
+}
+
+#guideBackButton:active {
+    transform: scale(0.98);
+}
+
 .hidden {
     display: none;
 }
