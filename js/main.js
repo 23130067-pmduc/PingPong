@@ -31,7 +31,7 @@ const levelElement = document.getElementById("level");
 let gameState = "menu";
 
 let currentLevel = 1;
-const maxImplementedLevel = 9;
+const maxImplementedLevel = 10;
 
 const exitGameButton = document.getElementById("exitGameButton");
 
@@ -63,6 +63,11 @@ const brickConfig = {
 
 const bricks = [];
 const bubbles = [];
+
+let bossState = null;
+const bossProjectiles = [];
+let bossPlayerHp = 5;
+let bossPlayerHitCooldown = 0;
 
 function createBubble(x, y) {
     const types = ["add2", "add3", "multiply"];
@@ -757,11 +762,41 @@ function createLevel9() {
         });
     }
 
+    // Level 8 inheritance: một Gate gọn hơn + Switch trước khi tới Portal A.
+    bricks.push({
+        x: 170,
+        y: 380,
+        width: 560,
+        height: 16,
+        color: "#0284c7",
+        active: true,
+        moving: false,
+        type: "gate",
+        breakable: false,
+        repairable: false,
+        open: false,
+        openTimer: 0,
+        openDuration: 5
+    });
+
+    bricks.push({
+        x: canvas.width / 2 - 35,
+        y: 465,
+        width: 70,
+        height: 24,
+        color: "#eab308",
+        active: true,
+        moving: false,
+        type: "switch",
+        breakable: false,
+        repairable: false
+    });
+
     const portalAPositions = [
-        {x: 70, y: 365},
-        {x: 205, y: 415},
-        {x: 660, y: 365},
-        {x: 790, y: 415}
+        {x: 70, y: 335},
+        {x: 235, y: 335},
+        {x: 630, y: 335},
+        {x: 790, y: 335}
     ];
 
     const portalBPositions = [
@@ -778,8 +813,8 @@ function createLevel9() {
     bricks.push({
         x: portalAPositions[firstAPosition].x,
         y: portalAPositions[firstAPosition].y,
-        width: 36,
-        height: 70,
+        width: 28,
+        height: 54,
         color: "#7c3aed",
         active: true,
         moving: false,
@@ -799,8 +834,8 @@ function createLevel9() {
     bricks.push({
         x: portalBPositions[firstBPosition].x,
         y: portalBPositions[firstBPosition].y,
-        width: 36,
-        height: 48,
+        width: 28,
+        height: 40,
         color: "#0891b2",
         active: true,
         moving: false,
@@ -816,6 +851,460 @@ function createLevel9() {
         spawnPositions: portalBPositions,
         spawnIndex: firstBPosition
     });
+}
+
+
+function createLevel10() {
+    bricks.length = 0;
+    bubbles.length = 0;
+    bossProjectiles.length = 0;
+    bossPlayerHp = 5;
+    bossPlayerHitCooldown = 0;
+
+    bossState = {
+        x: 180,
+        y: 40,
+        minX: 70,
+        maxX: 350,
+        direction: 1,
+        speed: 65,
+        phase: 1,
+        attackTimer: 0,
+        attackInterval: Infinity,
+        maxParts: 0
+    };
+
+    // Level 1 + 2:
+    // Cơ thể Boss được ghép từ các block phá được và toàn bộ Boss di chuyển ngang.
+    const partWidth = 56;
+    const partHeight = 28;
+
+    const shellPositions = [
+        {x: 60, y: 0}, {x: 120, y: 0}, {x: 180, y: 0}, {x: 240, y: 0}, {x: 300, y: 0},
+        {x: 0, y: 32}, {x: 60, y: 32}, {x: 120, y: 32}, {x: 180, y: 32}, {x: 240, y: 32}, {x: 300, y: 32}, {x: 360, y: 32},
+        {x: 0, y: 64}, {x: 60, y: 64}, {x: 120, y: 64}, {x: 180, y: 64}, {x: 240, y: 64}, {x: 300, y: 64}, {x: 360, y: 64},
+        {x: 60, y: 96}, {x: 120, y: 96}, {x: 180, y: 96}, {x: 240, y: 96}, {x: 300, y: 96}
+    ];
+
+    // Level 3: các block giáp không thể phá.
+    const armorPositions = new Set(["60,32", "300,32", "60,64", "300,64"]);
+
+    function addBossPart(offsetX, offsetY, section, armor = false, eye = false) {
+        bricks.push({
+            x: bossState.x + offsetX,
+            y: bossState.y + offsetY,
+            offsetX: offsetX,
+            offsetY: offsetY,
+            width: partWidth,
+            height: partHeight,
+            color: armor ? "#14532d" : "#16a34a",
+            active: true,
+            moving: false,
+            type: armor ? "bossArmor" : "boss",
+            bossPart: true,
+            bossSection: section,
+            eye: eye,
+            breakable: !armor,
+            repairable: !armor && section === "shell",
+            canDropBubble: !armor
+        });
+    }
+
+    for (const position of shellPositions) {
+        const armor = armorPositions.has(`${position.x},${position.y}`);
+        addBossPart(position.x, position.y, "shell", armor);
+    }
+
+    addBossPart(420, 32, "head", false, true);
+    addBossPart(420, 64, "head");
+    addBossPart(-60, 64, "tail");
+    addBossPart(60, 128, "leg");
+    addBossPart(120, 128, "leg");
+    addBossPart(300, 128, "leg");
+    addBossPart(360, 128, "leg");
+
+    bossState.maxParts = bricks.filter((brick) => brick.type === "boss").length;
+
+    // Level 2 + 3: Moving + Unbreakable obstacle.
+    const movingObstacles = [
+        {x: 220, y: 240, direction: 1},
+        {x: 600, y: 240, direction: -1}
+    ];
+
+    for (const obstacle of movingObstacles) {
+        bricks.push({
+            x: obstacle.x,
+            y: obstacle.y,
+            width: 80,
+            height: 18,
+            color: "#475569",
+            active: true,
+            moving: true,
+            moveSpeed: 55,
+            moveDirection: obstacle.direction,
+            minX: obstacle.x - 50,
+            maxX: obstacle.x + 50,
+            type: "unbreakable",
+            breakable: false,
+            repairable: false,
+            canDropBubble: false
+        });
+    }
+
+    // Level 6: Lava + Ball HP vẫn dùng cơ chế chung của game.
+    const lavaPositions = [
+        {x: 125, y: 255},
+        {x: 715, y: 255}
+    ];
+
+    for (const lava of lavaPositions) {
+        bricks.push({
+            x: lava.x,
+            y: lava.y,
+            width: 60,
+            height: 20,
+            color: "#dc2626",
+            active: true,
+            moving: false,
+            type: "lava",
+            breakable: false,
+            repairable: false,
+            canDropBubble: false
+        });
+    }
+
+    // Level 7: Repair Brick hồi lại các mảnh mai Boss đã bị phá.
+    bricks.push({
+        x: canvas.width / 2 - 30,
+        y: 225,
+        width: 60,
+        height: 22,
+        color: "#22c55e",
+        active: true,
+        moving: false,
+        type: "repair",
+        breakable: true,
+        repairable: false,
+        canDropBubble: false,
+        repairTimer: 0,
+        repairInterval: 7
+    });
+
+    // Level 8 kế thừa + cơ chế mới Level 10:
+    // Switch mở Gate như cũ, hoặc đánh Gate đủ 10 lần để phá Gate trong 7 giây.
+    bricks.push({
+        x: 140,
+        y: 310,
+        width: 620,
+        height: 18,
+        color: "#0284c7",
+        active: true,
+        moving: false,
+        type: "gate",
+        breakable: false,
+        repairable: false,
+        open: false,
+        openTimer: 0,
+        openDuration: 5,
+        hitCount: 0,
+        maxHits: 10,
+        broken: false,
+        brokenTimer: 0,
+        brokenDuration: 7,
+        brokenByHits: false
+    });
+
+    bricks.push({
+        x: canvas.width / 2 - 35,
+        y: 440,
+        width: 70,
+        height: 24,
+        color: "#eab308",
+        active: true,
+        moving: false,
+        type: "switch",
+        breakable: false,
+        repairable: false
+    });
+
+    // Level 4: Disappearing Wall.
+    const disappearingWalls = [
+        {x: 315, timer: 0},
+        {x: 567, timer: 2}
+    ];
+
+    for (const wall of disappearingWalls) {
+        bricks.push({
+            x: wall.x,
+            y: 350,
+            width: 18,
+            height: 70,
+            color: "#a855f7",
+            active: true,
+            moving: false,
+            type: "disappearing",
+            breakable: false,
+            repairable: false,
+            visible: wall.timer === 0,
+            timer: wall.timer,
+            visibleTime: 2,
+            hiddenTime: 2,
+            opacity: wall.timer === 0 ? 1 : 0
+        });
+    }
+
+    // Level 5:
+    // Các block Boss phá được có canDropBubble = true nên vẫn rơi +2 / +3 / ×2.
+
+    // Level 9: Portal A/B cùng ẩn hiện và đổi vị trí sau mỗi chu kỳ.
+    const portalAPositions = [
+        {x: 75, y: 385},
+        {x: 190, y: 455},
+        {x: 675, y: 455},
+        {x: 790, y: 385}
+    ];
+
+    const portalBPositions = [
+        {x: 315, y: 250},
+        {x: 515, y: 250}
+    ];
+
+    const firstAPosition = Math.floor(Math.random() * portalAPositions.length);
+    const firstBPosition = Math.floor(Math.random() * portalBPositions.length);
+
+    bricks.push({
+        x: portalAPositions[firstAPosition].x,
+        y: portalAPositions[firstAPosition].y,
+        width: 28,
+        height: 54,
+        color: "#7c3aed",
+        active: true,
+        moving: false,
+        type: "portal",
+        portalId: "A",
+        targetPortalId: "B",
+        breakable: false,
+        repairable: false,
+        visible: true,
+        timer: 0,
+        visibleTime: 4,
+        hiddenTime: 8,
+        spawnPositions: portalAPositions,
+        spawnIndex: firstAPosition
+    });
+
+    bricks.push({
+        x: portalBPositions[firstBPosition].x,
+        y: portalBPositions[firstBPosition].y,
+        width: 28,
+        height: 40,
+        color: "#0891b2",
+        active: true,
+        moving: false,
+        type: "portal",
+        portalId: "B",
+        targetPortalId: "A",
+        breakable: false,
+        repairable: false,
+        visible: true,
+        timer: 0,
+        visibleTime: 4,
+        hiddenTime: 8,
+        spawnPositions: portalBPositions,
+        spawnIndex: firstBPosition
+    });
+}
+
+function updateBossPhase() {
+    if (currentLevel !== 10 || !bossState) {
+        return;
+    }
+
+    const remainingParts = bricks.filter((brick) => brick.active && brick.type === "boss").length;
+    const hpRatio = bossState.maxParts > 0 ? remainingParts / bossState.maxParts : 0;
+    let newPhase = 1;
+
+    if (hpRatio <= 0.3) {
+        newPhase = 3;
+    } else if (hpRatio <= 0.5) {
+        newPhase = 2;
+    }
+
+    newPhase = Math.max(newPhase, bossState.phase);
+
+    if (newPhase !== bossState.phase) {
+        bossState.phase = newPhase;
+        bossState.attackTimer = 0;
+    }
+
+    if (bossState.phase === 1) {
+        bossState.speed = 65;
+        bossState.attackInterval = Infinity;
+    } else if (bossState.phase === 2) {
+        bossState.speed = 85;
+        bossState.attackInterval = 2.2;
+    } else {
+        bossState.speed = 125;
+        bossState.attackInterval = 1.1;
+    }
+}
+
+function createBossProjectile(targetOffset = 0) {
+    if (!bossState) {
+        return;
+    }
+
+    const head = bricks.find((brick) => brick.active && brick.type === "boss" && brick.bossSection === "head");
+    const startX = head ? head.x + head.width / 2 : bossState.x + 210;
+    const startY = head ? head.y + head.height : bossState.y + 125;
+    const targetX = paddle.x + paddle.width / 2 + targetOffset;
+    const targetY = paddle.y;
+    const dx = targetX - startX;
+    const dy = targetY - startY;
+    const distance = Math.hypot(dx, dy) || 1;
+    const speed = bossState.phase === 3 ? 290 : 230;
+
+    bossProjectiles.push({
+        x: startX,
+        y: startY,
+        radius: bossState.phase === 3 ? 9 : 8,
+        vx: speed * dx / distance,
+        vy: speed * dy / distance
+    });
+}
+
+function createBossAttack() {
+    if (!bossState || bossState.phase === 1) {
+        return;
+    }
+
+    if (bossState.phase === 2) {
+        createBossProjectile();
+    } else {
+        createBossProjectile(-70);
+        createBossProjectile(70);
+    }
+}
+
+function updateBoss(deltaTime) {
+    if (currentLevel !== 10 || !bossState) {
+        return;
+    }
+
+    updateBossPhase();
+
+    bossState.x += bossState.speed * bossState.direction * deltaTime;
+
+    if (bossState.x <= bossState.minX) {
+        bossState.x = bossState.minX;
+        bossState.direction = 1;
+    } else if (bossState.x >= bossState.maxX) {
+        bossState.x = bossState.maxX;
+        bossState.direction = -1;
+    }
+
+    for (const brick of bricks) {
+        if (!brick.bossPart) {
+            continue;
+        }
+
+        brick.x = bossState.x + brick.offsetX;
+        brick.y = bossState.y + brick.offsetY;
+    }
+
+    if (bossState.phase === 1) {
+        return;
+    }
+
+    bossState.attackTimer += deltaTime;
+
+    if (bossState.attackTimer >= bossState.attackInterval) {
+        bossState.attackTimer = 0;
+        createBossAttack();
+    }
+}
+
+function updateBossProjectiles(deltaTime) {
+    if (currentLevel !== 10) {
+        return;
+    }
+
+    if (bossPlayerHitCooldown > 0) {
+        bossPlayerHitCooldown = Math.max(0, bossPlayerHitCooldown - deltaTime);
+    }
+
+    const paddleLeft = Math.min(paddle.previousX, paddle.x);
+    const paddleRight = Math.max(paddle.previousX + paddle.width, paddle.x + paddle.width);
+
+    for (let i = bossProjectiles.length - 1; i >= 0; i--) {
+        const projectile = bossProjectiles[i];
+        projectile.x += projectile.vx * deltaTime;
+        projectile.y += projectile.vy * deltaTime;
+
+        if (projectile.x + projectile.radius < 0 || projectile.x - projectile.radius > canvas.width || projectile.y - projectile.radius > canvas.height) {
+            bossProjectiles.splice(i, 1);
+            continue;
+        }
+
+        const hitsPaddle = projectile.x + projectile.radius >= paddleLeft && projectile.x - projectile.radius <= paddleRight &&
+            projectile.y + projectile.radius >= paddle.y && projectile.y - projectile.radius <= paddle.y + paddle.height;
+
+        if (!hitsPaddle) {
+            continue;
+        }
+
+        bossProjectiles.splice(i, 1);
+
+        if (bossPlayerHitCooldown > 0) {
+            continue;
+        }
+
+        bossPlayerHp -= 1;
+        bossPlayerHitCooldown = 0.65;
+
+        if (bossPlayerHp <= 0) {
+            bossPlayerHp = 0;
+            loseGame();
+            return;
+        }
+    }
+}
+
+function drawBossProjectiles() {
+    if (currentLevel !== 10) {
+        return;
+    }
+
+    for (const projectile of bossProjectiles) {
+        ctx.beginPath();
+        ctx.arc(projectile.x, projectile.y, projectile.radius, 0, Math.PI * 2);
+        ctx.fillStyle = "#ef4444";
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(projectile.x, projectile.y, Math.max(3, projectile.radius - 4), 0, Math.PI * 2);
+        ctx.fillStyle = "#facc15";
+        ctx.fill();
+    }
+}
+
+function drawBossHUD() {
+    if (currentLevel !== 10 || !bossState || gameState !== "playing") {
+        return;
+    }
+
+    const remainingParts = bricks.filter((brick) => brick.active && brick.type === "boss").length;
+    const hpPercent = bossState.maxParts > 0 ? Math.ceil((remainingParts / bossState.maxParts) * 100) : 0;
+
+    ctx.save();
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 15px Arial";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(`BOSS HP: ${hpPercent}%`, 18, 16);
+    ctx.fillText(`PHASE: ${bossState.phase}`, 18, 38);
+    ctx.fillText(`PADDLE HP: ${bossPlayerHp}`, 18, 60);
+    ctx.restore();
 }
 
 function createBricks() {
@@ -837,6 +1326,8 @@ function createBricks() {
         createLevel8();
     } else if (currentLevel === 9) {
         createLevel9();
+    } else if (currentLevel === 10) {
+        createLevel10();
     }
 }
 
@@ -916,14 +1407,43 @@ function openGates() {
             continue;
         }
 
+        // Gate bị phá bằng 10 hit thì Switch tạm thời không có tác dụng.
+        if (brick.broken) {
+            continue;
+        }
+
         brick.open = true;
         brick.openTimer = brick.openDuration;
+
+        // Level 10: dùng Switch nghĩa là chọn cơ chế mở Gate cũ, reset số hit phá Gate.
+        if (currentLevel === 10 && brick.maxHits) {
+            brick.hitCount = 0;
+        }
     }
 }
 
 function updateGates(deltaTime) {
     for (const brick of bricks) {
-        if (brick.type !== "gate" || !brick.open) {
+        if (brick.type !== "gate") {
+            continue;
+        }
+
+        if (brick.broken) {
+            brick.brokenTimer -= deltaTime;
+
+            if (brick.brokenTimer <= 0) {
+                brick.broken = false;
+                brick.brokenByHits = false;
+                brick.brokenTimer = 0;
+                brick.hitCount = 0;
+                brick.open = false;
+                brick.openTimer = 0;
+            }
+
+            continue;
+        }
+
+        if (!brick.open) {
             continue;
         }
 
@@ -970,7 +1490,7 @@ function teleportBall(ball, portal) {
     ball.y = targetPortal.y + targetPortal.height / 2;
     ball.portalCooldown = 0.5;
 
-    if (portal.portalId === "A") {
+    if ((currentLevel === 9 || currentLevel === 10) && portal.portalId === "A") {
         ball.inPortalRoom = true;
         ball.portalRoomTimer = 10;
     } else {
@@ -1011,6 +1531,7 @@ function createBall(x, y, vx = 0, vy = 0, launched = false) {
         destroyed: false,
         lavaCooldown: 0,
         switchCooldown: 0,
+        gateHitCooldown: 0,
         portalCooldown: 0,
         inPortalRoom: false,
         portalRoomTimer: 0
@@ -1055,6 +1576,10 @@ function startGame() {
     paddle.previousX = paddle.x;
     resetControls();
     bubbles.length = 0;
+    bossProjectiles.length = 0;
+    bossState = null;
+    bossPlayerHp = 5;
+    bossPlayerHitCooldown = 0;
     createBricks();
     resetBall();
 }
@@ -1118,10 +1643,18 @@ function winGame() {
     resetControls();
     balls.length = 0;
     bubbles.length = 0;
+    bossProjectiles.length = 0;
     gameScreen.classList.add("hidden");
     resultScreen.classList.remove("hidden");
-    resultTitle.textContent = "THẮNG";
-    resultText.textContent = `Bạn đã hoàn thành màn ${currentLevel} với ${score} điểm.`;
+
+    if (currentLevel === 10) {
+        resultTitle.textContent = "HOÀN THÀNH GAME";
+        resultText.textContent = `Bạn đã đánh bại Turtle Boss với ${score} điểm.`;
+    } else {
+        resultTitle.textContent = "THẮNG";
+        resultText.textContent = `Bạn đã hoàn thành màn ${currentLevel} với ${score} điểm.`;
+    }
+
     restartButton.classList.add("hidden");
 
     if (currentLevel < maxImplementedLevel) {
@@ -1140,6 +1673,7 @@ function loseGame() {
     resetControls();
     balls.length = 0;
     bubbles.length = 0;
+    bossProjectiles.length = 0;
     gameScreen.classList.add("hidden");
     resultScreen.classList.remove("hidden");
     resultTitle.textContent = "THUA";
@@ -1299,6 +1833,10 @@ function drawBricks() {
         }
 
         if (brick.type === "gate") {
+            if (brick.broken) {
+                continue;
+            }
+
             ctx.save();
             ctx.globalAlpha = brick.open ? 0.18 : 1;
             ctx.fillStyle = brick.open ? "#38bdf8" : "#0284c7";
@@ -1306,21 +1844,33 @@ function drawBricks() {
             ctx.strokeStyle = "#bae6fd";
             ctx.lineWidth = 2;
             ctx.strokeRect(brick.x, brick.y, brick.width, brick.height);
+
+            if (currentLevel === 10 && brick.maxHits && !brick.open) {
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "bold 12px Arial";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "bottom";
+                ctx.fillText(`${brick.hitCount}/${brick.maxHits}`, brick.x + brick.width / 2, brick.y - 4);
+            }
+
             ctx.restore();
             continue;
         }
 
         if (brick.type === "switch") {
-            ctx.fillStyle = "#eab308";
+            const level10Gate = currentLevel === 10 ? bricks.find((item) => item.type === "gate") : null;
+            const disabled = level10Gate && level10Gate.brokenByHits;
+
+            ctx.fillStyle = disabled ? "#64748b" : "#eab308";
             ctx.fillRect(brick.x, brick.y, brick.width, brick.height);
-            ctx.strokeStyle = "#fef08a";
+            ctx.strokeStyle = disabled ? "#cbd5e1" : "#fef08a";
             ctx.lineWidth = 2;
             ctx.strokeRect(brick.x, brick.y, brick.width, brick.height);
             ctx.fillStyle = "#ffffff";
             ctx.font = "bold 14px Arial";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
-            ctx.fillText("S", brick.x + brick.width / 2, brick.y + brick.height / 2);
+            ctx.fillText(disabled ? "X" : "S", brick.x + brick.width / 2, brick.y + brick.height / 2);
             continue;
         }
 
@@ -1337,6 +1887,54 @@ function drawBricks() {
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             ctx.fillText(brick.portalId, brick.x + brick.width / 2, brick.y + brick.height / 2);
+            continue;
+        }
+
+        if (brick.type === "boss") {
+            if (brick.bossSection === "head") {
+                ctx.fillStyle = "#84cc16";
+            } else if (brick.bossSection === "leg" || brick.bossSection === "tail") {
+                ctx.fillStyle = "#65a30d";
+            } else {
+                ctx.fillStyle = "#16a34a";
+            }
+
+            ctx.fillRect(brick.x, brick.y, brick.width, brick.height);
+            ctx.strokeStyle = "#bbf7d0";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(brick.x, brick.y, brick.width, brick.height);
+
+            if (brick.bossSection === "shell") {
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.28)";
+                ctx.beginPath();
+                ctx.moveTo(brick.x + 6, brick.y + brick.height - 5);
+                ctx.lineTo(brick.x + brick.width - 6, brick.y + 5);
+                ctx.stroke();
+            }
+
+            if (brick.eye) {
+                ctx.beginPath();
+                ctx.arc(brick.x + brick.width - 12, brick.y + 8, 4, 0, Math.PI * 2);
+                ctx.fillStyle = "#ffffff";
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(brick.x + brick.width - 11, brick.y + 8, 2, 0, Math.PI * 2);
+                ctx.fillStyle = "#111827";
+                ctx.fill();
+            }
+
+            continue;
+        }
+
+        if (brick.type === "bossArmor") {
+            ctx.fillStyle = "#14532d";
+            ctx.fillRect(brick.x, brick.y, brick.width, brick.height);
+            ctx.strokeStyle = "#d1fae5";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(brick.x, brick.y, brick.width, brick.height);
+            ctx.fillStyle = "rgba(255, 255, 255, 0.22)";
+            ctx.fillRect(brick.x + 5, brick.y + 5, brick.width - 10, 4);
             continue;
         }
 
@@ -1388,8 +1986,17 @@ function drawBricks() {
 /* Va chạm bóng với gạch */
 
 function checkWinCondition() {
-    const hasBreakableBrick =
-        bricks.some((brick) => brick.active && brick.breakable !== false);
+    if (currentLevel === 10) {
+        const hasBossPart = bricks.some((brick) => brick.active && brick.type === "boss");
+
+        if (!hasBossPart) {
+            winGame();
+        }
+
+        return;
+    }
+
+    const hasBreakableBrick = bricks.some((brick) => brick.active && brick.breakable !== false);
 
     if (!hasBreakableBrick) {
         winGame();
@@ -1410,7 +2017,7 @@ function checkBrickCollisions(ball) {
             continue;
         }
 
-        if (brick.type === "gate" && brick.open) {
+        if (brick.type === "gate" && (brick.open || brick.broken)) {
             continue;
         }
 
@@ -1429,6 +2036,21 @@ function checkBrickCollisions(ball) {
                 teleportBall(ball, brick);
             }
             return;
+        }
+
+        if (brick.type === "gate" && currentLevel === 10 && brick.maxHits && ball.gateHitCooldown <= 0) {
+            brick.hitCount += 1;
+            ball.gateHitCooldown = 0.18;
+
+            if (brick.hitCount >= brick.maxHits) {
+                brick.hitCount = brick.maxHits;
+                brick.broken = true;
+                brick.brokenByHits = true;
+                brick.brokenTimer = brick.brokenDuration;
+                brick.open = false;
+                brick.openTimer = 0;
+                return;
+            }
         }
 
         const distance = Math.sqrt(distanceSquared);
@@ -1465,6 +2087,12 @@ function checkBrickCollisions(ball) {
         }
 
         if (brick.type === "switch") {
+            const gate = bricks.find((item) => item.type === "gate");
+
+            if (currentLevel === 10 && gate && gate.brokenByHits) {
+                break;
+            }
+
             if (ball.switchCooldown <= 0) {
                 openGates();
                 ball.switchCooldown = 0.3;
@@ -1514,6 +2142,10 @@ function updateBall(ball, deltaTime) {
 
     if (ball.switchCooldown > 0) {
         ball.switchCooldown = Math.max(0, ball.switchCooldown - deltaTime);
+    }
+
+    if (ball.gateHitCooldown > 0) {
+        ball.gateHitCooldown = Math.max(0, ball.gateHitCooldown - deltaTime);
     }
 
     if (ball.portalCooldown > 0) {
@@ -1681,6 +2313,7 @@ function multiplyBalls() {
         clone.hp = source.hp;
         clone.lavaCooldown = source.lavaCooldown;
         clone.switchCooldown = source.switchCooldown;
+        clone.gateHitCooldown = source.gateHitCooldown;
         clone.portalCooldown = source.portalCooldown;
         clone.inPortalRoom = source.inPortalRoom;
         clone.portalRoomTimer = source.portalRoomTimer;
@@ -1717,6 +2350,13 @@ function update(deltaTime) {
         updateGates(stepTime);
         updatePortals(stepTime);
         updateRepairBricks(stepTime);
+        updateBoss(stepTime);
+        updateBossProjectiles(stepTime);
+
+        if (gameState !== "playing") {
+            break;
+        }
+
         updateBubbles(stepTime);
         updateBalls(stepTime);
 
@@ -1805,6 +2445,11 @@ function draw() {
             ctx.textBaseline = "bottom";
             ctx.fillText(`HP ${ball.hp}`, ball.x, ball.y - 13);
         }
+    }
+
+    if (currentLevel === 10 && gameState === "playing") {
+        drawBossProjectiles();
+        drawBossHUD();
     }
 }
 
