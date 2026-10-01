@@ -31,7 +31,7 @@ const levelElement = document.getElementById("level");
 let gameState = "menu";
 
 let currentLevel = 1;
-const maxImplementedLevel = 7;
+const maxImplementedLevel = 8;
 
 const exitGameButton = document.getElementById("exitGameButton");
 
@@ -65,11 +65,7 @@ const bricks = [];
 const bubbles = [];
 
 function createBubble(x, y) {
-    const types = [
-        "add2",
-        "add3"
-    ];
-
+    const types = ["add2", "add3", "multiply"];
     const type = types[Math.floor(Math.random() * types.length)];
 
     bubbles.push({
@@ -502,6 +498,105 @@ function createLevel7() {
     }
 }
 
+function createLevel8() {
+    bricks.length = 0;
+    bubbles.length = 0;
+
+    const levelConfig = {
+        rows: 5,
+        columns: 8,
+        width: 60,
+        height: 20,
+        gap: 8,
+        top: 45,
+        colors: ["#f87171", "#fb923c", "#facc15", "#4ade80", "#60a5fa"]
+    };
+
+    const totalWidth = levelConfig.columns * levelConfig.width + (levelConfig.columns - 1) * levelConfig.gap;
+    const startX = (canvas.width - totalWidth) / 2;
+    const moveRange = 15;
+
+    for (let row = 0; row < levelConfig.rows; row++) {
+        for (let column = 0; column < levelConfig.columns; column++) {
+            const x = startX + column * (levelConfig.width + levelConfig.gap);
+
+            const repair = row === 1 && column === 3;
+            const lava = !repair && row === 2 && (column === 1 || column === 6);
+            const unbreakable = !repair && !lava && row === 3 && (column === 0 || column === 7);
+            const moving = !repair && !lava && !unbreakable && row === 0;
+
+            let type = "normal";
+            let color = levelConfig.colors[row];
+
+            if (repair) {
+                type = "repair";
+                color = "#22c55e";
+            } else if (lava) {
+                type = "lava";
+                color = "#dc2626";
+            } else if (unbreakable) {
+                type = "unbreakable";
+                color = "#475569";
+            }
+
+            bricks.push({
+                x: x,
+                y: levelConfig.top + row * (levelConfig.height + levelConfig.gap),
+                width: levelConfig.width,
+                height: levelConfig.height,
+                color: color,
+                active: true,
+                moving: moving,
+                moveSpeed: 55,
+                moveDirection: 1,
+                minX: x - moveRange,
+                maxX: x + moveRange,
+                type: type,
+                breakable: !unbreakable && !lava,
+                repairable: type === "normal",
+                canDropBubble: type === "normal",
+                repairTimer: repair ? 0 : undefined,
+                repairInterval: repair ? 5 : undefined
+            });
+        }
+    }
+
+    const gateY = 255;
+    const gateSegments = 9;
+    const gateWidth = canvas.width / gateSegments;
+
+    for (let i = 0; i < gateSegments; i++) {
+        bricks.push({
+            x: i * gateWidth,
+            y: gateY,
+            width: gateWidth,
+            height: 16,
+            color: "#0284c7",
+            active: true,
+            moving: false,
+            type: "gate",
+            breakable: false,
+            repairable: false,
+            open: false,
+            openTimer: 0,
+            openDuration: 5
+        });
+    }
+
+    bricks.push({
+        x: canvas.width / 2 - 35,
+        y: 350,
+        width: 70,
+        height: 24,
+        color: "#eab308",
+        active: true,
+        moving: false,
+        type: "switch",
+        breakable: false,
+        repairable: false
+    });
+}
+
 function createBricks() {
     if (currentLevel === 1) {
         createLevel1();
@@ -517,6 +612,8 @@ function createBricks() {
         createLevel6();
     } else if (currentLevel === 7) {
         createLevel7();
+    } else if (currentLevel === 8) {
+        createLevel8();
     }
 }
 
@@ -590,17 +687,38 @@ function updateRepairBricks(deltaTime) {
     }
 }
 
+function openGates() {
+    for (const brick of bricks) {
+        if (brick.type !== "gate") {
+            continue;
+        }
+
+        brick.open = true;
+        brick.openTimer = brick.openDuration;
+    }
+}
+
+function updateGates(deltaTime) {
+    for (const brick of bricks) {
+        if (brick.type !== "gate" || !brick.open) {
+            continue;
+        }
+
+        brick.openTimer -= deltaTime;
+
+        if (brick.openTimer <= 0) {
+            brick.openTimer = 0;
+            brick.open = false;
+        }
+    }
+}
+
 createBricks();
 
 const balls = [];
+const MAX_BALLS = 12;
 
-function createBall(
-    x,
-    y,
-    vx = 0,
-    vy = 0,
-    launched = false
-) {
+function createBall(x, y, vx = 0, vy = 0, launched = false) {
     return {
         x: x,
         y: y,
@@ -611,7 +729,8 @@ function createBall(
         launched: launched,
         hp: 3,
         destroyed: false,
-        lavaCooldown: 0
+        lavaCooldown: 0,
+        switchCooldown: 0
     };
 }
 
@@ -904,6 +1023,44 @@ function drawBricks() {
             continue;
         }
 
+        if (brick.type === "gate") {
+            ctx.save();
+
+            if (brick.open) {
+                ctx.globalAlpha = 0.18;
+                ctx.fillStyle = "#38bdf8";
+            } else {
+                ctx.globalAlpha = 1;
+                ctx.fillStyle = "#0284c7";
+            }
+
+            ctx.fillRect(brick.x, brick.y, brick.width, brick.height);
+
+            ctx.strokeStyle = "#bae6fd";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(brick.x, brick.y, brick.width, brick.height);
+
+            ctx.restore();
+            continue;
+        }
+
+        if (brick.type === "switch") {
+            ctx.fillStyle = "#eab308";
+            ctx.fillRect(brick.x, brick.y, brick.width, brick.height);
+
+            ctx.strokeStyle = "#fef08a";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(brick.x, brick.y, brick.width, brick.height);
+
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 14px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText("S", brick.x + brick.width / 2, brick.y + brick.height / 2);
+
+            continue;
+        }
+
         if (brick.type === "lava") {
             ctx.fillStyle = "#b91c1c";
             ctx.fillRect(
@@ -1011,6 +1168,10 @@ function checkBrickCollisions(ball) {
             continue;
         }
 
+        if (brick.type === "gate" && brick.open) {
+            continue;
+        }
+
         const closestX = Math.max(brick.x, Math.min(ball.x, brick.x + brick.width));
         const closestY = Math.max(brick.y, Math.min(ball.y, brick.y + brick.height));
         const dx = ball.x - closestX;
@@ -1022,7 +1183,6 @@ function checkBrickCollisions(ball) {
         }
 
         const distance = Math.sqrt(distanceSquared);
-
         let normalX;
         let normalY;
         let penetration;
@@ -1032,13 +1192,14 @@ function checkBrickCollisions(ball) {
             normalY = dy / distance;
             penetration = ball.radius - distance;
         } else {
-            const faces = [{depth: ball.x - brick.x, nx: -1, ny: 0},
+            const faces = [
+                {depth: ball.x - brick.x, nx: -1, ny: 0},
                 {depth: brick.x + brick.width - ball.x, nx: 1, ny: 0},
                 {depth: ball.y - brick.y, nx: 0, ny: -1},
-                {depth: brick.y + brick.height - ball.y, nx: 0, ny: 1}];
+                {depth: brick.y + brick.height - ball.y, nx: 0, ny: 1}
+            ];
 
-            const nearestFace = faces.reduce((nearest, face) =>
-                face.depth < nearest.depth ? face : nearest);
+            const nearestFace = faces.reduce((nearest, face) => face.depth < nearest.depth ? face : nearest);
 
             normalX = nearestFace.nx;
             normalY = nearestFace.ny;
@@ -1055,10 +1216,20 @@ function checkBrickCollisions(ball) {
             ball.vy -= 2 * velocityAlongNormal * normalY;
         }
 
+        if (brick.type === "switch") {
+            if (ball.switchCooldown <= 0) {
+                openGates();
+                ball.switchCooldown = 0.3;
+            }
+
+            break;
+        }
+
         if (brick.type === "lava") {
             if (ball.lavaCooldown <= 0) {
                 ball.hp -= 1;
                 ball.lavaCooldown = 0.3;
+
                 if (ball.hp <= 0) {
                     ball.hp = 0;
                     ball.destroyed = true;
@@ -1074,6 +1245,7 @@ function checkBrickCollisions(ball) {
 
         const destroyedX = brick.x + brick.width / 2;
         const destroyedY = brick.y + brick.height / 2;
+
         brick.active = false;
         score += 1;
         scoreElement.textContent = score;
@@ -1092,6 +1264,10 @@ function checkBrickCollisions(ball) {
 function updateBall(ball, deltaTime) {
     if (ball.lavaCooldown > 0) {
         ball.lavaCooldown = Math.max(0, ball.lavaCooldown - deltaTime);
+    }
+
+    if (ball.switchCooldown > 0) {
+        ball.switchCooldown = Math.max(0, ball.switchCooldown - deltaTime);
     }
 
     if (!ball.launched) {
@@ -1199,25 +1375,61 @@ function updateBubbles(deltaTime) {
 
 function applyBubbleEffect(type) {
     if (type === "add2") {
-        addBalls(2);
+        addBallsFromPaddle(2);
     } else if (type === "add3") {
-        addBalls(3);
+        addBallsFromPaddle(3);
+    } else if (type === "multiply") {
+        multiplyBalls();
     }
 }
 
-function addBalls(amount) {
-    if (balls.length === 0) {
+function addBallsFromPaddle(amount) {
+    const availableSlots = MAX_BALLS - balls.length;
+    const count = Math.min(amount, availableSlots);
+
+    if (count <= 0) {
         return;
     }
 
-    const sourceBall = balls[0];
+    const startX = paddle.x + paddle.width / 2;
+    const startY = paddle.y - 9;
 
-    for (let i = 0; i < amount; i++) {
-        const angle = Math.random() * 0.8 - 0.4;
-        balls.push(createBall(sourceBall.x,
-            sourceBall.y,
-            sourceBall.speed * Math.sin(angle),
-            -Math.abs(sourceBall.speed * Math.cos(angle)), true));
+    for (let i = 0; i < count; i++) {
+        let angle = 0;
+
+        if (count > 1) {
+            angle = -0.3 + (0.6 * i) / (count - 1);
+        }
+
+        const speed = 360;
+        const vx = speed * Math.sin(angle);
+        const vy = -speed * Math.cos(angle);
+
+        balls.push(createBall(startX, startY, vx, vy, true));
+    }
+}
+
+function multiplyBalls() {
+    const originalBalls = [...balls];
+    const availableSlots = MAX_BALLS - balls.length;
+    const cloneCount = Math.min(originalBalls.length, availableSlots);
+
+    for (let i = 0; i < cloneCount; i++) {
+        const source = originalBalls[i];
+        const angleOffset = i % 2 === 0 ? 0.18 : -0.18;
+
+        const cos = Math.cos(angleOffset);
+        const sin = Math.sin(angleOffset);
+
+        const newVx = source.vx * cos - source.vy * sin;
+        const newVy = source.vx * sin + source.vy * cos;
+
+        const clone = createBall(source.x, source.y, newVx, newVy, true);
+        clone.hp = source.hp;
+        clone.lavaCooldown = source.lavaCooldown;
+        clone.switchCooldown = source.switchCooldown;
+
+        balls.push(clone);
     }
 }
 
@@ -1246,6 +1458,7 @@ function update(deltaTime) {
 
         updateMovingBricks(stepTime);
         updateDisappearingWalls(stepTime);
+        updateGates(stepTime);
         updateRepairBricks(stepTime);
         updateBubbles(stepTime);
         updateBalls(stepTime);
@@ -1261,24 +1474,20 @@ function update(deltaTime) {
 function drawBubbles() {
     for (const bubble of bubbles) {
         ctx.beginPath();
-        ctx.arc(
-            bubble.x,
-            bubble.y,
-            bubble.radius,
-            0,
-            Math.PI * 2
-        );
+        ctx.arc(bubble.x, bubble.y, bubble.radius, 0, Math.PI * 2);
 
         if (bubble.type === "add2") {
             ctx.fillStyle = "#22c55e";
         } else if (bubble.type === "add3") {
             ctx.fillStyle = "#38bdf8";
+        } else if (bubble.type === "multiply") {
+            ctx.fillStyle = "#a855f7";
         }
 
         ctx.fill();
 
         ctx.fillStyle = "#ffffff";
-        ctx.font = "bold 10px Segoe UI";
+        ctx.font = "bold 10px Arial";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
 
@@ -1286,6 +1495,8 @@ function drawBubbles() {
             ctx.fillText("+2", bubble.x, bubble.y);
         } else if (bubble.type === "add3") {
             ctx.fillText("+3", bubble.x, bubble.y);
+        } else if (bubble.type === "multiply") {
+            ctx.fillText("×2", bubble.x, bubble.y);
         }
     }
 }
