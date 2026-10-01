@@ -31,7 +31,7 @@ const levelElement = document.getElementById("level");
 let gameState = "menu";
 
 let currentLevel = 1;
-const maxImplementedLevel = 6;
+const maxImplementedLevel = 7;
 
 const exitGameButton = document.getElementById("exitGameButton");
 
@@ -408,6 +408,100 @@ function createLevel6() {
     }
 }
 
+function createLevel7() {
+    bricks.length = 0;
+    bubbles.length = 0;
+
+    const levelConfig = {
+        rows: 7,
+        columns: 8,
+        width: 60,
+        height: 20,
+        gap: 8,
+        top: 50,
+        colors: ["#f87171", "#fb923c", "#facc15", "#4ade80", "#22d3ee", "#60a5fa", "#818cf8"]
+    };
+
+    const totalWidth = levelConfig.columns * levelConfig.width + (levelConfig.columns - 1) * levelConfig.gap;
+    const startX = (canvas.width - totalWidth) / 2;
+    const moveRange = 20;
+
+    for (let row = 0; row < levelConfig.rows; row++) {
+        for (let column = 0; column < levelConfig.columns; column++) {
+            const x = startX + column * (levelConfig.width + levelConfig.gap);
+
+            const repair = row === 4 && column === 3;
+
+            const lava = !repair &&
+                ((row === 2 && column === 1) || (row === 3 && column === 6));
+
+            const unbreakable = !repair && !lava &&
+                ((row === 4 && column === 0) || (row === 4 && column === 7));
+
+            const moving = !repair && !lava && !unbreakable && (row === 0 || row === 6);
+
+            let type = "normal";
+            let color = levelConfig.colors[row];
+
+            if (repair) {
+                type = "repair";
+                color = "#22c55e";
+            } else if (lava) {
+                type = "lava";
+                color = "#dc2626";
+            } else if (unbreakable) {
+                type = "unbreakable";
+                color = "#475569";
+            }
+
+            bricks.push({
+                x: x,
+                y: levelConfig.top + row * (levelConfig.height + levelConfig.gap),
+                width: levelConfig.width,
+                height: levelConfig.height,
+                color: color,
+                active: true,
+                moving: moving,
+                moveSpeed: 60,
+                moveDirection: row === 0 ? 1 : -1,
+                minX: x - moveRange,
+                maxX: x + moveRange,
+                type: type,
+                breakable: !unbreakable && !lava,
+                repairable: type === "normal",
+                canDropBubble: type === "normal",
+                repairTimer: repair ? 0 : undefined,
+                repairInterval: repair ? 5 : undefined
+            });
+        }
+    }
+
+    const walls = [
+        {x: canvas.width / 2 - 150, visible: true, timer: 0},
+        {x: canvas.width / 2 + 130, visible: false, timer: 2}
+    ];
+
+    for (const wall of walls) {
+        bricks.push({
+            x: wall.x,
+            y: 275,
+            width: 18,
+            height: 90,
+            color: "#a855f7",
+            active: true,
+            moving: false,
+            type: "disappearing",
+            breakable: false,
+            repairable: false,
+            visible: wall.visible,
+            timer: wall.timer,
+            visibleTime: 2,
+            hiddenTime: 2,
+            opacity: wall.visible ? 1 : 0
+        });
+    }
+}
+
 function createBricks() {
     if (currentLevel === 1) {
         createLevel1();
@@ -421,12 +515,14 @@ function createBricks() {
         createLevel5();
     } else if (currentLevel === 6) {
         createLevel6();
+    } else if (currentLevel === 7) {
+        createLevel7();
     }
 }
 
 function updateMovingBricks(deltaTime) {
     for (const brick of bricks) {
-        if (!brick.active || !brick.moving) {
+        if (!brick.moving) {
             continue;
         }
 
@@ -435,9 +531,7 @@ function updateMovingBricks(deltaTime) {
         if (brick.x <= brick.minX) {
             brick.x = brick.minX;
             brick.moveDirection = 1;
-        } else if (
-            brick.x >= brick.maxX
-        ) {
+        } else if (brick.x >= brick.maxX) {
             brick.x = brick.maxX;
             brick.moveDirection = -1;
         }
@@ -466,6 +560,33 @@ function updateDisappearingWalls(deltaTime) {
         } else {
             brick.opacity = 1;
         }
+    }
+}
+
+function updateRepairBricks(deltaTime) {
+    for (const repairBrick of bricks) {
+        if (!repairBrick.active || repairBrick.type !== "repair") {
+            continue;
+        }
+
+        repairBrick.repairTimer += deltaTime;
+
+        if (repairBrick.repairTimer < repairBrick.repairInterval) {
+            continue;
+        }
+
+        repairBrick.repairTimer = 0;
+
+        const destroyedBricks = bricks.filter((brick) => !brick.active && brick.repairable === true);
+
+        if (destroyedBricks.length === 0) {
+            continue;
+        }
+
+        const randomIndex = Math.floor(Math.random() * destroyedBricks.length);
+        const brickToRepair = destroyedBricks[randomIndex];
+
+        brickToRepair.active = true;
     }
 }
 
@@ -808,6 +929,29 @@ function drawBricks() {
 
             continue;
         }
+        if (brick.type === "repair") {
+            ctx.fillStyle = "#16a34a";
+            ctx.fillRect(
+                brick.x,
+                brick.y,
+                brick.width,
+                brick.height
+            );
+            ctx.strokeStyle = "#bbf7d0";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(
+                brick.x,
+                brick.y,
+                brick.width,
+                brick.height
+            );
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 18px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText("+", brick.x + brick.width / 2, brick.y + brick.height / 2);
+            continue;
+        }
 
         ctx.fillStyle = brick.color;
         ctx.fillRect(
@@ -1099,8 +1243,10 @@ function update(deltaTime) {
         }
 
         clampPaddle();
+
         updateMovingBricks(stepTime);
         updateDisappearingWalls(stepTime);
+        updateRepairBricks(stepTime);
         updateBubbles(stepTime);
         updateBalls(stepTime);
 
