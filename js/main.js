@@ -69,6 +69,7 @@ const bossProjectiles = [];
 const bossPortals = [];
 let bossPlayerHp = 5;
 let bossPlayerHitCooldown = 0;
+let level10GuideVisible = false;
 
 function createBubble(x, y) {
     const types = ["add2", "add3", "multiply"];
@@ -1319,7 +1320,7 @@ function createBricks() {
         createLevel4();
     } else if (currentLevel === 5) {
         createLevel5();
-    } else if (currentLevel === 6) {
+    } else if (currentLevel === 6 || currentLevel === 8) {
         createLevel6();
     } else if (currentLevel === 7) {
         createLevel7();
@@ -1522,6 +1523,8 @@ function createBall(x, y, vx = 0, vy = 0, launched = false) {
 const keys = {left: false, right: false};
 let controlMode = null;
 let lastMouseMoveTime = -Infinity;
+let lastMouseCanvasX = null;
+let mouseInsideCanvas = false;
 const MOUSE_IDLE_TIME = 200;
 
 function clampPaddle() {
@@ -1538,6 +1541,8 @@ function resetControls() {
     keys.right = false;
     controlMode = null;
     lastMouseMoveTime = -Infinity;
+    lastMouseCanvasX = null;
+    mouseInsideCanvas = false;
 }
 
 /* Chuyển trạng thái màn hình */
@@ -1562,6 +1567,7 @@ function startGame() {
     bossState = null;
     bossPlayerHp = 5;
     bossPlayerHitCooldown = 0;
+    level10GuideVisible = currentLevel === 10;
     createBricks();
     resetBall();
 }
@@ -1611,6 +1617,7 @@ function showMenu() {
     bossProjectiles.length = 0;
     bossPortals.length = 0;
     bossState = null;
+    level10GuideVisible = false;
     resetBall();
 }
 
@@ -1688,10 +1695,14 @@ homeButton.addEventListener("click", () => {showMenu();});
 window.addEventListener(
     "keydown",
     (event) => {
-        if (
-            gameState !==
-            "playing"
-        ) {
+        if (gameState !== "playing") {
+            return;
+        }
+
+        if (currentLevel === 10 && level10GuideVisible) {
+            event.preventDefault();
+            level10GuideVisible = false;
+            lastMouseCanvasX = null;
             return;
         }
 
@@ -1732,6 +1743,7 @@ window.addEventListener(
         }
 
         controlMode = "keyboard";
+        lastMouseCanvasX = null;
 
         if (event.key === "ArrowLeft") {
             keys.left = true;
@@ -1765,33 +1777,64 @@ window.addEventListener("blur", () => {
     }
 );
 
-canvas.addEventListener("mousemove", (event) => {
-        if (gameState !== "playing") {
-            return;
-        }
+function getCanvasMouseX(event) {
+    const rect = canvas.getBoundingClientRect();
+    const style = getComputedStyle(canvas);
+    const borderLeft = parseFloat(style.borderLeftWidth) || 0;
+    const borderRight = parseFloat(style.borderRightWidth) || 0;
+    const displayWidth = rect.width - borderLeft - borderRight;
 
-        if (controlMode === "keyboard") {
-            return;
-        }
-
-        controlMode = "mouse";
-        lastMouseMoveTime = performance.now();
-
-        const rect = canvas.getBoundingClientRect();
-        const style = getComputedStyle(canvas);
-        const borderLeft = parseFloat(style.borderLeftWidth) || 0;
-        const borderRight = parseFloat(style.borderRightWidth) || 0;
-        const displayWidth = rect.width - borderLeft - borderRight;
-
-        if (displayWidth <= 0) {
-            return;
-        }
-
-        const mouseX = (event.clientX - rect.left - borderLeft) * (canvas.width / displayWidth);
-        paddle.x = mouseX - paddle.width / 2;
-        clampPaddle();
+    if (displayWidth <= 0) {
+        return null;
     }
-);
+
+    return (event.clientX - rect.left - borderLeft) * (canvas.width / displayWidth);
+}
+
+canvas.addEventListener("mouseenter", (event) => {
+    mouseInsideCanvas = true;
+    lastMouseCanvasX = getCanvasMouseX(event);
+});
+
+canvas.addEventListener("mouseleave", () => {
+    mouseInsideCanvas = false;
+    lastMouseCanvasX = null;
+
+    if (controlMode === "mouse") {
+        controlMode = null;
+    }
+});
+
+canvas.addEventListener("mousemove", (event) => {
+    if (gameState !== "playing" || (currentLevel === 10 && level10GuideVisible)) {
+        return;
+    }
+
+    if (controlMode === "keyboard") {
+        return;
+    }
+
+    const mouseX = getCanvasMouseX(event);
+
+    if (mouseX === null) {
+        return;
+    }
+
+    mouseInsideCanvas = true;
+    controlMode = "mouse";
+    lastMouseMoveTime = performance.now();
+
+    // Lần đầu chuột vào lại Canvas chỉ ghi nhận vị trí, không kéo paddle tới con trỏ.
+    if (lastMouseCanvasX === null) {
+        lastMouseCanvasX = mouseX;
+        return;
+    }
+
+    const deltaX = mouseX - lastMouseCanvasX;
+    paddle.x += deltaX;
+    lastMouseCanvasX = mouseX;
+    clampPaddle();
+});
 
 function drawBricks() {
     for (const brick of bricks) {
@@ -2299,6 +2342,10 @@ function update(deltaTime) {
         return;
     }
 
+    if (currentLevel === 10 && level10GuideVisible) {
+        return;
+    }
+
     const steps = Math.max(1, Math.ceil(deltaTime / (1 / 120)));
     const stepTime = deltaTime / steps;
 
@@ -2371,6 +2418,59 @@ function drawBubbles() {
     }
 }
 
+function drawLevel10Guide() {
+    if (currentLevel !== 10 || !level10GuideVisible || gameState !== "playing") {
+        return;
+    }
+
+    ctx.save();
+    ctx.fillStyle = "rgba(2, 6, 23, 0.90)";
+    ctx.fillRect(95, 105, 710, 390);
+
+    ctx.strokeStyle = "#38bdf8";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(95, 105, 710, 390);
+
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#38bdf8";
+    ctx.font = "bold 28px Arial";
+    ctx.fillText("LEVEL 10 - TURTLE BOSS", canvas.width / 2, 145);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 17px Arial";
+    ctx.fillText("Boss có 3 Phase.", canvas.width / 2, 190);
+
+    ctx.font = "16px Arial";
+    ctx.fillText("Từ Phase 2 boss bắt đầu tấn công. Phase 3 có đủ 3 loại đạn:", canvas.width / 2, 230);
+
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#f87171";
+    ctx.fillText("FIRE", 245, 280);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText("Đạn thường - trúng Paddle sẽ mất HP.", 355, 280);
+
+    ctx.fillStyle = "#facc15";
+    ctx.fillText("ENERGY", 245, 325);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText("Đạn có thể đỡ và phản lại boss.", 355, 325);
+
+    ctx.fillStyle = "#a855f7";
+    ctx.fillText("RICOCHET", 245, 370);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText("Đạn tím có thể nảy tường.", 355, 370);
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "15px Arial";
+    ctx.fillText("Phase 3 còn có Shield - hãy tận dụng ENERGY để phá khiên.", canvas.width / 2, 420);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 17px Arial";
+    ctx.fillText("NHẤN PHÍM BẤT KỲ ĐỂ BẮT ĐẦU", canvas.width / 2, 465);
+    ctx.restore();
+}
+
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -2405,7 +2505,7 @@ function draw() {
             ctx.fillStyle = "#22d3ee";
             ctx.shadowBlur = 14;
             ctx.shadowColor = "#22d3ee";
-        } else if (currentLevel === 6 || currentLevel === 8) {
+        } else if (currentLevel === 6) {
             if (ball.hp === 3) {
                 ctx.fillStyle = "#ffffff";
             } else if (ball.hp === 2) {
@@ -2432,6 +2532,7 @@ function draw() {
     if (currentLevel === 10 && gameState === "playing") {
         drawBossProjectiles();
         drawBossHUD();
+        drawLevel10Guide();
     }
 }
 

@@ -204,26 +204,32 @@ p {
 }
 
 .guide {
+    width: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
 }
 
 .guide-content {
-    width: min(100%, 700px);
-    margin-bottom: 28px;
-    text-align: left;
+    width: min(90%, 800px);
+    margin: 0 auto 28px;
 }
 
 .guide-content p {
-    margin: 0 0 18px;
+    width: 100%;
+    margin: 0 0 22px;
     color: #cbd5e1;
     font-size: 18px;
-    line-height: 1.7;
+    line-height: 1.8;
+    text-align: justify;
+    text-align-last: left;
 }
 
 #guideBackButton {
+    display: block;
     width: 260px;
+    margin: 0 auto;
     padding: 14px 20px;
     border: none;
     border-radius: 8px;
@@ -233,9 +239,6 @@ p {
     font-size: 18px;
     font-weight: 700;
     cursor: pointer;
-    transition:
-            transform 0.15s ease,
-            background 0.15s ease;
 }
 
 #guideBackButton:hover {
