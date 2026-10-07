@@ -1,30 +1,22 @@
 <!doctype html>
 <html lang="vi">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>PingPong Game</title>
     <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
-
 <main>
     <section id="menuScreen" class="screen menu">
         <h1>PINGPONG GAME</h1>
-
         <div class="menu-buttons">
             <button id="playButton">Chơi</button>
             <button id="levelButton">Chọn màn</button>
         </div>
     </section>
-
-
     <section id="gameScreen" class="screen game hidden">
-
         <h1>PINGPONG GAME</h1>
-
         <div class="hud">
             <span>Màn:<strong id="level"> 1</strong></span>
             <span>Điểm:<strong id="score"> 0</strong></span>
@@ -32,10 +24,8 @@
         </div>
         <canvas id="gameCanvas" width="900" height="600">Trình duyệt của bạn không hỗ trợ Canvas.</canvas>
     </section>
-
     <section id="levelSelectScreen" class="screen level-select hidden">
         <h1>CHỌN MÀN</h1>
-
         <div class="level-list">
             <button class="level-button" data-level="1">Level 1</button>
             <button class="level-button" data-level="2">Level 2</button>
@@ -48,15 +38,11 @@
             <button class="level-button" data-level="9">Level 9</button>
             <button class="level-button" data-level="10">Level 10</button>
         </div>
-
         <button id="levelBackButton">Quay lại</button>
     </section>
-
     <section id="resultScreen" class="screen result hidden">
         <h1 id="resultTitle">THẮNG</h1>
-
         <p id="resultText"></p>
-
         <div class="result-buttons">
             <button id="restartButton">Chơi lại</button>
             <button id="nextButton">Tiếp theo</button>
@@ -64,9 +50,6 @@
         </div>
     </section>
 </main>
-
-<script src="js/main.js"></script>
-
+<script type="module" src="js/main.js"></script>
 </body>
-
 </html>
