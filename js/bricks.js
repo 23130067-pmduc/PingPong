@@ -315,7 +315,8 @@ export function drawBricks() {
         }
 
         if (brick.type === "bossArmor") {
-            ctx.fillStyle = "#14532d";
+            const armorRatio = brick.armorMaxHp > 0 ? brick.armorHp / brick.armorMaxHp : 0;
+            ctx.fillStyle = armorRatio > 0.6 ? "#14532d" : armorRatio > 0.3 ? "#3f6212" : "#7f1d1d";
             ctx.fillRect(brick.x, brick.y, brick.width, brick.height);
             ctx.strokeStyle = "#d1fae5";
             ctx.lineWidth = 2;
@@ -467,7 +468,16 @@ export function checkBrickCollisions(ball) {
                 break;
             }
 
-            if (brick.type === "bossArmor" && (!state.bossState || state.bossState.chargedTimer <= 0)) {
+            if (brick.type === "bossArmor") {
+                brick.armorHp = Math.max(0, brick.armorHp - 1);
+
+                if (brick.armorHp === 0) {
+                    brick.active = false;
+                    state.score += 2;
+                    scoreElement.textContent = state.score;
+                    checkWinCondition();
+                }
+
                 break;
             }
 
@@ -475,7 +485,7 @@ export function checkBrickCollisions(ball) {
             const destroyedY = brick.y + brick.height / 2;
 
             brick.active = false;
-            state.score += brick.type === "bossArmor" ? 2 : 1;
+            state.score += 1;
             scoreElement.textContent = state.score;
 
             if (brick.canDropBubble && Math.random() < 0.2) {

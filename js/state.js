@@ -46,5 +46,5 @@ export const levelGuides = {
     7: "Phá gạch có dấu + để ngăn hồi sinh gạch. Né LAVA và các khối xám không thể phá.",
     8: "Đánh bóng vào S để mở cổng 5 giây. Hàng trên và dưới di chuyển lên xuống, chú ý LAVA.",
     9: "Dùng Portal A và B để đưa bóng vào khu vực chứa gạch. Cổng sẽ đổi vị trí theo thời gian.",
-    10: "Boss có 3 Phase. Đạn đỏ gây sát thương, vàng có thể đánh trả, tím nảy tường. Phase 3 có khiên."
+    10: "Boss có 3 Phase. Né đạn đỏ, phản đạn điện về Boss. Vỏ rùa có thể bị phá và Phase cuối có Shield."
 };
